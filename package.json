@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
+    "bench": "npx tsx scripts/bench.ts",
     "prepublishOnly": "npm run build"
   },
   "engines": {
