@@ -1,27 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Squeezer } from '../src/squeezer.js';
+import { rpc, makeArray } from './helpers.js';
 
 const sq = new Squeezer(false);
-
-/** Wrap a text value into a JSON-RPC result line */
-function rpc(text: string, id: number = 1): string {
-  return JSON.stringify({
-    jsonrpc: '2.0',
-    id,
-    result: { content: [{ type: 'text', text }] },
-  });
-}
-
-/** Generate a flat array of N objects as a JSON string */
-function makeArray(n: number): string {
-  const rows = Array.from({ length: n }, (_, i) => ({
-    id: i + 1,
-    name: `user_${i + 1}`,
-    email: `user${i + 1}@example.com`,
-    active: true,
-  }));
-  return JSON.stringify(rows, null, 2);
-}
 
 // --- 3.1 Threshold guards ---
 
@@ -202,10 +183,6 @@ describe('pipe escaping', () => {
     // source `foo\|bar_0` → pipe escaped: `foo\\|bar_0`
     expect(out).toContain('foo\\\\|bar_0');
   });
-
-  // Known limitation: value `foo\|bar` (literal backslash before pipe) becomes
-  // `foo\\|bar` which is ambiguous on reverse parse. Acceptable for v1 —
-  // LLM read-only consumption, not machine-to-machine.
 });
 
 // --- 3.6 Null handling ---
