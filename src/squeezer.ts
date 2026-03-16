@@ -72,26 +72,29 @@ export class Squeezer {
     const first = data[0];
     if (typeof first !== 'object' || first === null || Array.isArray(first)) return null;
 
-    const keys = Object.keys(first);
+    const firstRec = first as Record<string, unknown>;
+    const keys = Object.keys(firstRec);
     if (keys.length === 0) return null;
 
     const keyCount = keys.length;
 
     // Check all values in first item are flat
     for (const key of keys) {
-      const val = (first as Record<string, unknown>)[key];
+      const val = firstRec[key];
       if (val !== null && val !== undefined && typeof val === 'object') return null;
     }
 
-    // Check remaining sample items match
+    // Sample-check remaining items for uniform shape (perf trade-off: full
+    // validation happens in toPSV, mismatches there fall back to minified JSON)
     const limit = Math.min(SAMPLE_SIZE, data.length);
     for (let i = 1; i < limit; i++) {
       const item = data[i];
       if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-      if (Object.keys(item as object).length !== keyCount) return null;
+      const rec = item as Record<string, unknown>;
+      if (Object.keys(rec).length !== keyCount) return null;
       for (const key of keys) {
-        if (!(key in (item as Record<string, unknown>))) return null;
-        const val = (item as Record<string, unknown>)[key];
+        if (!(key in rec)) return null;
+        const val = rec[key];
         if (val !== null && val !== undefined && typeof val === 'object') return null;
       }
     }

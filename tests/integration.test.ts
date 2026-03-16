@@ -1,10 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { type ChildProcess } from 'node:child_process';
-import { send, trackedRunShim, killAll } from './helpers.js';
+import { send, createShimRunner, killAll } from './helpers.js';
 
 const procs: ChildProcess[] = [];
-const sh = (...args: Parameters<typeof trackedRunShim> extends [infer _, ...infer R] ? R : never) =>
-  trackedRunShim(procs, ...args);
+const sh = createShimRunner(procs);
 
 afterEach(() => killAll(procs));
 
@@ -54,7 +53,7 @@ describe('signal propagation', () => {
   it('SIGTERM forwarded to child, shim exits', async () => {
     const { proc, done } = sh();
     // Give the child time to start
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 200));
     proc.kill('SIGTERM');
     const { code } = await done;
     // Child killed by signal — shim may exit with null code or signal
@@ -140,7 +139,7 @@ describe('MAX_LINE_LENGTH bypass', () => {
     const { proc, done } = sh({ MCP_SQUEEZE_VERBOSE: '1' });
     send(proc, { cmd: 'huge', id: 6 });
     // Allow time for the 11MB write to flush through pipes
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 1000));
     send(proc, { cmd: 'exit', code: 0 });
     const { stderr, code } = await done;
     // Verbose mode should log the skip

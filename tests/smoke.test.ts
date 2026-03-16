@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { Squeezer } from '../src/squeezer.js';
-import { SHIM, rpc, makeArray, send, trackedRunShim, killAll } from './helpers.js';
+import { SHIM, rpc, makeArray, send, createShimRunner, killAll } from './helpers.js';
 
 // --- Squeezer smoke ---
 
@@ -79,8 +79,7 @@ describe('squeezer smoke', () => {
 
 describe('CLI smoke', () => {
   const procs: ChildProcess[] = [];
-  const sh = (...args: Parameters<typeof trackedRunShim> extends [infer _, ...infer R] ? R : never) =>
-    trackedRunShim(procs, ...args);
+  const sh = createShimRunner(procs);
 
   afterEach(() => killAll(procs));
 
@@ -105,7 +104,7 @@ describe('CLI smoke', () => {
       execFileSync('node', [SHIM], { encoding: 'utf8', stdio: 'pipe' });
       expect.unreachable('should have exited with code 2');
     } catch (err: unknown) {
-      const e = err as { status: number; stderr: string };
+      const e = err as { status: number, stderr: string };
       expect(e.status).toBe(2);
       expect(e.stderr).toContain('Usage:');
     }
@@ -116,7 +115,7 @@ describe('CLI smoke', () => {
       execFileSync('node', [SHIM, '--'], { encoding: 'utf8', stdio: 'pipe' });
       expect.unreachable('should have exited with code 2');
     } catch (err: unknown) {
-      const e = err as { status: number; stderr: string };
+      const e = err as { status: number, stderr: string };
       expect(e.status).toBe(2);
     }
   });

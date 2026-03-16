@@ -5,9 +5,9 @@ export const SHIM = resolve('dist/index.js');
 export const MOCK = resolve('tests/fixtures/mock-server.mjs');
 
 export interface ShimResult {
-  stdout: string;
-  stderr: string;
-  code: number | null;
+  stdout: string
+  stderr: string
+  code: number | null
 }
 
 /** Wrap a text value into a JSON-RPC result line */
@@ -43,7 +43,7 @@ export function runShim(
   env: Record<string, string> = {},
   childCmd = 'node',
   childArgs = [MOCK],
-): { proc: ChildProcess; done: Promise<ShimResult> } {
+): { proc: ChildProcess, done: Promise<ShimResult> } {
   const proc = spawn('node', [SHIM, '--', childCmd, ...childArgs], {
     env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -71,7 +71,9 @@ export function runShim(
 export function killAll(procs: ChildProcess[]): void {
   for (const p of procs) {
     if (p.pid && !p.killed) {
-      try { p.kill('SIGKILL'); } catch {}
+      try {
+        p.kill('SIGKILL');
+      } catch {}
     }
   }
   procs.length = 0;
@@ -83,8 +85,14 @@ export function trackedRunShim(
   env: Record<string, string> = {},
   childCmd = 'node',
   childArgs = [MOCK],
-): { proc: ChildProcess; done: Promise<ShimResult> } {
+): { proc: ChildProcess, done: Promise<ShimResult> } {
   const result = runShim(env, childCmd, childArgs);
   procs.push(result.proc);
   return result;
+}
+
+/** Create a bound shim runner that auto-tracks processes for cleanup */
+export function createShimRunner(procs: ChildProcess[]) {
+  return (...args: Parameters<typeof trackedRunShim> extends [ChildProcess[], ...infer R] ? R : never) =>
+    trackedRunShim(procs, ...args);
 }

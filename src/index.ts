@@ -52,6 +52,22 @@ let childExited = false;
 let exitCode: number | null = null;
 let exitSignal: NodeJS.Signals | null = null;
 
+const squeezer = disabled ? null : new Squeezer(verbose);
+
+const emitLine = (raw: string): void => {
+  const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+  if (line.length > MAX_LINE_LENGTH) {
+    if (verbose) {
+      process.stderr.write(
+        `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
+      );
+    }
+    process.stdout.write(line + '\n');
+  } else {
+    process.stdout.write(squeezer!.process(line) + '\n');
+  }
+};
+
 if (disabled) {
   child.stdout.pipe(process.stdout);
   child.stdout.on('end', () => {
@@ -59,23 +75,8 @@ if (disabled) {
     maybeExit();
   });
 } else {
-  const squeezer = new Squeezer(verbose);
   const decoder = new StringDecoder('utf8');
   let buffer = '';
-
-  function emitLine(raw: string): void {
-    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
-    if (line.length > MAX_LINE_LENGTH) {
-      if (verbose) {
-        process.stderr.write(
-          `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
-        );
-      }
-      process.stdout.write(line + '\n');
-    } else {
-      process.stdout.write(squeezer.process(line) + '\n');
-    }
-  }
 
   child.stdout.on('data', (chunk: Buffer) => {
     buffer += decoder.write(chunk);
