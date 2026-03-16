@@ -1,0 +1,36 @@
+{
+  "name": "mcp-squeeze",
+  "version": "1.0.0",
+  "description": "MCP token optimizer — stdio shim that transforms verbose JSON into token-efficient formats, saving 35-64% on tokens",
+  "type": "module",
+  "bin": {
+    "mcp-squeeze": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "anthropic",
+    "token-optimization",
+    "context-window"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}
