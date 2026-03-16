@@ -7,7 +7,7 @@ import { SHIM, rpc, makeArray, send, createShimRunner, killAll } from './helpers
 // --- Squeezer smoke ---
 
 describe('squeezer smoke', () => {
-  const sq = new Squeezer(false);
+  const sq = new Squeezer({});
 
   it('non-JSON line passes through unchanged', () => {
     expect(sq.process('hello')).toBe('hello');
@@ -26,7 +26,7 @@ describe('squeezer smoke', () => {
     expect(text).toContain('10 rows');
   });
 
-  it('nested data → minified JSON fallback', () => {
+  it('nested data → flattened to PSV', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       meta: { nested: true },
@@ -34,8 +34,8 @@ describe('squeezer smoke', () => {
     const result = sq.process(rpc(JSON.stringify(data, null, 2)));
     const parsed = JSON.parse(result);
     const text = parsed.result.content[0].text;
-    expect(text).not.toContain('## PSV');
-    expect(text.startsWith('[')).toBe(true);
+    expect(text).toContain('## PSV');
+    expect(text).toContain('meta.nested');
   });
 
   it('broken JSON in text field → unchanged', () => {
