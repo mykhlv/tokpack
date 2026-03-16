@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
-import { Squeezer } from './squeezer.js';
+import { Squeezer, Format } from './squeezer.js';
 
 declare const VERSION: string;
 
@@ -30,6 +30,10 @@ const commandArgs = childArgs.slice(1);
 
 const disabled = process.env.MCP_SQUEEZE_DISABLED === '1';
 const verbose = process.env.MCP_SQUEEZE_VERBOSE === '1';
+const rawFormat = process.env.MCP_SQUEEZE_FORMAT;
+const format: Format = rawFormat === 'md' ? 'md' : 'psv';
+const stripEmpty = process.env.MCP_SQUEEZE_NO_STRIP !== '1';
+const flatten = process.env.MCP_SQUEEZE_NO_FLATTEN !== '1';
 
 // --- 4.2 Spawn child process ---
 
@@ -52,22 +56,6 @@ let childExited = false;
 let exitCode: number | null = null;
 let exitSignal: NodeJS.Signals | null = null;
 
-const squeezer = disabled ? null : new Squeezer(verbose);
-
-const emitLine = (raw: string): void => {
-  const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
-  if (line.length > MAX_LINE_LENGTH) {
-    if (verbose) {
-      process.stderr.write(
-        `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
-      );
-    }
-    process.stdout.write(line + '\n');
-  } else {
-    process.stdout.write(squeezer!.process(line) + '\n');
-  }
-};
-
 if (disabled) {
   child.stdout.pipe(process.stdout);
   child.stdout.on('end', () => {
@@ -75,11 +63,34 @@ if (disabled) {
     maybeExit();
   });
 } else {
+  const squeezer = new Squeezer({ verbose, format, stripEmpty, flatten });
   const decoder = new StringDecoder('utf8');
   let buffer = '';
 
+  const emitLine = (raw: string): void => {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    if (line.length > MAX_LINE_LENGTH) {
+      if (verbose) {
+        process.stderr.write(
+          `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
+        );
+      }
+      process.stdout.write(line + '\n');
+    } else {
+      process.stdout.write(squeezer.process(line) + '\n');
+    }
+  };
+
   child.stdout.on('data', (chunk: Buffer) => {
     buffer += decoder.write(chunk);
+
+    // Guard against unbounded buffer growth from data without newlines
+    if (!buffer.includes('\n') && buffer.length > MAX_LINE_LENGTH) {
+      emitLine(buffer);
+      buffer = '';
+      return;
+    }
+
     const lines = buffer.split('\n');
     buffer = lines.pop()!;
 
