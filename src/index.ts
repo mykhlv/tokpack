@@ -63,35 +63,34 @@ if (disabled) {
   const decoder = new StringDecoder('utf8');
   let buffer = '';
 
+  function emitLine(raw: string): void {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    if (line.length > MAX_LINE_LENGTH) {
+      if (verbose) {
+        process.stderr.write(
+          `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
+        );
+      }
+      process.stdout.write(line + '\n');
+    } else {
+      process.stdout.write(squeezer.process(line) + '\n');
+    }
+  }
+
   child.stdout.on('data', (chunk: Buffer) => {
     buffer += decoder.write(chunk);
     const lines = buffer.split('\n');
     buffer = lines.pop()!;
 
     for (const raw of lines) {
-      const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
-      if (line.length > MAX_LINE_LENGTH) {
-        if (verbose) {
-          process.stderr.write(
-            `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
-          );
-        }
-        process.stdout.write(line + '\n');
-      } else {
-        process.stdout.write(squeezer.process(line) + '\n');
-      }
+      emitLine(raw);
     }
   });
 
   child.stdout.on('end', () => {
     buffer += decoder.end();
     if (buffer.length > 0) {
-      const line = buffer.endsWith('\r') ? buffer.slice(0, -1) : buffer;
-      if (line.length > MAX_LINE_LENGTH) {
-        process.stdout.write(line + '\n');
-      } else {
-        process.stdout.write(squeezer.process(line) + '\n');
-      }
+      emitLine(buffer);
     }
     stdoutEnded = true;
     maybeExit();
