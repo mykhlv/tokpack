@@ -44,8 +44,7 @@ export class Squeezer {
       return JSON.stringify(data);
     }
 
-    const sample = data.slice(0, SAMPLE_SIZE);
-    const keys = this.getUniformKeys(sample);
+    const keys = this.getUniformKeys(data);
     if (!keys) {
       if (this.verbose) {
         process.stderr.write(`[mcp-squeeze] id:${id} skip: non-uniform keys\n`);
@@ -67,14 +66,16 @@ export class Squeezer {
     }
   }
 
-  private getUniformKeys(sample: unknown[]): string[] | null {
-    if (sample.length === 0) return null;
+  private getUniformKeys(data: unknown[]): string[] | null {
+    if (data.length === 0) return null;
 
-    const first = sample[0];
+    const first = data[0];
     if (typeof first !== 'object' || first === null || Array.isArray(first)) return null;
 
     const keys = Object.keys(first);
     if (keys.length === 0) return null;
+
+    const keyCount = keys.length;
 
     // Check all values in first item are flat
     for (const key of keys) {
@@ -83,11 +84,11 @@ export class Squeezer {
     }
 
     // Check remaining sample items match
-    for (let i = 1; i < sample.length; i++) {
-      const item = sample[i];
+    const limit = Math.min(SAMPLE_SIZE, data.length);
+    for (let i = 1; i < limit; i++) {
+      const item = data[i];
       if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-      const itemKeys = Object.keys(item);
-      if (itemKeys.length !== keys.length) return null;
+      if (Object.keys(item as object).length !== keyCount) return null;
       for (const key of keys) {
         if (!(key in (item as Record<string, unknown>))) return null;
         const val = (item as Record<string, unknown>)[key];
@@ -102,23 +103,23 @@ export class Squeezer {
     const header = `## PSV|${keys.join(',')}|${data.length} rows`;
     const rows: string[] = [];
 
+    const keyCount = keys.length;
+
     for (const item of data) {
       if (typeof item !== 'object' || item === null || Array.isArray(item)) {
         throw new Error('non-object row');
       }
       const rec = item as Record<string, unknown>;
-      if (Object.keys(rec).length !== keys.length) {
-        throw new Error('key count mismatch');
-      }
-      const vals = keys.map((key) => {
-        if (!(key in rec)) throw new Error('missing key');
-        const val = rec[key];
+      if (Object.keys(rec).length !== keyCount) throw new Error('key count mismatch');
+      const vals = new Array<string>(keyCount);
+      for (let k = 0; k < keyCount; k++) {
+        const val = rec[keys[k]];
         if (val !== null && val !== undefined && typeof val === 'object') {
           throw new Error('nested value');
         }
         const str = val === null || val === undefined ? '' : String(val);
-        return str.replace(/\|/g, '\\|');
-      });
+        vals[k] = str.replace(/\|/g, '\\|');
+      }
       rows.push(vals.join('|'));
     }
 
