@@ -187,6 +187,22 @@ describe('pipe escaping', () => {
     expect(out).toContain('path\\to\\file_0');
   });
 
+  it('backslash before pipe → both preserved (known ambiguity)', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: `foo\\|bar_${i}`,
+      email: `user${i}@example.com`,
+      note: 'some longer note to exceed threshold',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    // source `foo\|bar_0` → pipe escaped: `foo\\|bar_0`
+    expect(out).toContain('foo\\\\|bar_0');
+  });
+
   // Known limitation: value `foo\|bar` (literal backslash before pipe) becomes
   // `foo\\|bar` which is ambiguous on reverse parse. Acceptable for v1 —
   // LLM read-only consumption, not machine-to-machine.

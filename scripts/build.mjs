@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, chmodSync } from 'node:fs';
 import { build } from 'esbuild';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -13,3 +13,5 @@ await build({
   banner: { js: '#!/usr/bin/env node' },
   define: { VERSION: JSON.stringify(pkg.version) },
 });
+
+chmodSync('dist/index.js', 0o755);

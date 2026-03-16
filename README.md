@@ -49,8 +49,8 @@ It intercepts JSON-RPC responses and converts large uniform arrays into PSV (Pip
 
 **Decision flow:**
 - Payload < 512 bytes → pass-through
-- Array ≤ 5 items → minified JSON
-- Array > 5 items with uniform flat keys → PSV
+- Array < 5 items → minified JSON
+- Array ≥ 5 items with uniform flat keys → PSV
 - Nested objects/arrays in values → fallback to minified JSON
 - Any error → original data returned unmodified
 

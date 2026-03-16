@@ -26,6 +26,15 @@
     "token-optimization",
     "context-window"
   ],
+  "author": "mcp-squeeze contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickovchinnikov/mcp-squeeze.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nickovchinnikov/mcp-squeeze/issues"
+  },
+  "homepage": "https://github.com/nickovchinnikov/mcp-squeeze#readme",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.5.0",
