@@ -33,9 +33,55 @@ export function makeArray(n: number): string {
   );
 }
 
+/** Generate Context7-style structured text with N sections */
+export function makeStructuredText(n: number): string {
+  const sections = Array.from({ length: n }, (_, i) => [
+    `- Title: Library_${i + 1}`,
+    `- ID: /org/lib-${i + 1}`,
+    `- Description: A library for doing thing ${i + 1} with code`,
+    `- Code Snippets: ${(i + 1) * 100}`,
+    `- Score: ${(i + 1) * 10.5}`,
+  ].join('\n'));
+  return 'Available Libraries:\n\n' + sections.join('\n----------\n');
+}
+
 /** Send a JSON command to the child's stdin */
 export function send(proc: ChildProcess, cmd: object): void {
   proc.stdin!.write(JSON.stringify(cmd) + '\n');
+}
+
+/** Generate blank-line-separated Key: Value text with N sections */
+export function makeKeyValueText(n: number): string {
+  return Array.from({ length: n }, (_, i) => [
+    `Name: Library_${i + 1}`,
+    `Version: ${i + 1}.0.0`,
+    `Description: A library for doing thing ${i + 1} with code and more padding`,
+    `Downloads: ${(i + 1) * 1000}`,
+    `License: MIT`,
+  ].join('\n')).join('\n\n');
+}
+
+/** Generate markdown-bold **Key**: Value text with N sections */
+export function makeBoldKeyValueText(n: number): string {
+  return Array.from({ length: n }, (_, i) => [
+    `**Name**: Library_${i + 1}`,
+    `**Version**: ${i + 1}.0.0`,
+    `**Description**: A library for doing thing ${i + 1} with code and padding`,
+    `**Downloads**: ${(i + 1) * 1000}`,
+    `**License**: MIT`,
+  ].join('\n')).join('\n\n');
+}
+
+/** Generate markdown-header-separated Key: Value text with N sections */
+export function makeHeaderSeparatedText(n: number): string {
+  return Array.from({ length: n }, (_, i) => [
+    `## Library ${i + 1}`,
+    `Name: Library_${i + 1}`,
+    `Version: ${i + 1}.0.0`,
+    `Description: A library for doing thing ${i + 1} with code and more padding`,
+    `Downloads: ${(i + 1) * 1000}`,
+    `License: MIT`,
+  ].join('\n')).join('\n');
 }
 
 /** Spawn the shim with a child command, collect stdout/stderr */
@@ -54,13 +100,16 @@ export function runShim(
   proc.stdout!.on('data', (d: Buffer) => stdoutBuf.push(d));
   proc.stderr!.on('data', (d: Buffer) => stderrBuf.push(d));
 
-  const done = new Promise<ShimResult>((resolve) => {
+  const done = new Promise<ShimResult>((resolve, reject) => {
     proc.on('exit', (code) => {
       resolve({
         stdout: Buffer.concat(stdoutBuf).toString(),
         stderr: Buffer.concat(stderrBuf).toString(),
         code,
       });
+    });
+    proc.on('error', (err) => {
+      reject(err);
     });
   });
 

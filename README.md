@@ -122,7 +122,7 @@ Example PSV output:
 - Payload < 512 bytes → pass-through
 - Array < 5 items → minified JSON
 - Pre-processing: strip all-null columns, flatten nested objects
-- Array ≥ 5 items with uniform keys → PSV (default) or Markdown table
+- Array ≥ 5 items with uniform keys → PSV (default), Markdown table, or TOON
 - Non-uniform data → fallback to minified JSON
 - Any error → original data returned unmodified
 
@@ -132,7 +132,7 @@ Example PSV output:
 |----------|---------|-------------|
 | `MCP_SQUEEZE_DISABLED` | `0` | Set to `1` to bypass all optimization |
 | `MCP_SQUEEZE_VERBOSE` | `0` | Set to `1` to log optimization stats to stderr |
-| `MCP_SQUEEZE_FORMAT` | `psv` | Output format: `psv` or `md` (Markdown table) |
+| `MCP_SQUEEZE_FORMAT` | `psv` | Output format: `psv`, `md` (Markdown table), or `toon` (TOON) |
 | `MCP_SQUEEZE_NO_STRIP` | `0` | Set to `1` to disable null/empty column stripping |
 | `MCP_SQUEEZE_NO_FLATTEN` | `0` | Set to `1` to disable dot-notation flattening |
 

@@ -1,5 +1,5 @@
 // Benchmark script for mcp-squeeze
-// Compares JSON (pretty / minified) vs PSV vs Markdown table
+// Compares JSON (pretty / minified) vs PSV vs Markdown table vs TOON
 // across realistic MCP response scenarios.
 //
 // Usage: npx tsx scripts/bench.ts
@@ -10,7 +10,7 @@ import { Squeezer } from '../src/squeezer.js';
 // Data generators
 // ---------------------------------------------------------------------------
 
-function makeFlat(n) {
+function makeFlat(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     id: i + 1,
     name: `user_${i + 1}`,
@@ -20,7 +20,7 @@ function makeFlat(n) {
   }));
 }
 
-function makeNested(n) {
+function makeNested(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     id: i + 1,
     name: `user_${i + 1}`,
@@ -33,7 +33,7 @@ function makeNested(n) {
   }));
 }
 
-function makeNullHeavy(n) {
+function makeNullHeavy(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     id: i + 1,
     name: `user_${i + 1}`,
@@ -46,7 +46,7 @@ function makeNullHeavy(n) {
   }));
 }
 
-function makeDbRows(n) {
+function makeDbRows(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     id: i + 1,
     title: `Task #${i + 1}: implement feature for the project`,
@@ -61,7 +61,7 @@ function makeDbRows(n) {
   }));
 }
 
-function makeMixed(n) {
+function makeMixed(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     id: i + 1,
     name: `item_${i + 1}`,
@@ -83,7 +83,7 @@ function makeMixed(n) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function rpc(text) {
+function rpc(text: string) {
   return JSON.stringify({
     jsonrpc: '2.0',
     id: 1,
@@ -91,12 +91,12 @@ function rpc(text) {
   });
 }
 
-function countTokensApprox(str) {
+function countTokensApprox(str: string) {
   // ~4 chars per token is the standard rough estimate
   return Math.ceil(str.length / 4);
 }
 
-function extractText(rpcLine) {
+function extractText(rpcLine: string) {
   const parsed = JSON.parse(rpcLine);
   return parsed.result.content[0].text;
 }
@@ -122,6 +122,7 @@ const configs = [
   { label: 'PSV + strip', sq: new Squeezer({ verbose: false, flatten: false, stripEmpty: true, format: 'psv' }) },
   { label: 'PSV + strip + flatten', sq: new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'psv' }) },
   { label: 'MD + strip + flatten', sq: new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'md' }) },
+  { label: 'TOON + strip + flatten', sq: new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'toon' }) },
 ];
 
 console.log('# mcp-squeeze benchmarks\n');
@@ -144,21 +145,18 @@ for (const scenario of scenarios) {
     const results = [];
 
     for (const cfg of configs) {
-      let chars, tokens, text;
+      let chars, tokens;
 
       if (cfg.label === 'JSON (pretty)') {
         chars = prettyChars;
         tokens = prettyTokens;
-        text = prettyJson;
       } else if (cfg.label === 'JSON (minified)') {
-        // Just minify, don't do any tabular conversion
         chars = minChars;
         tokens = minTokens;
-        text = minJson;
       } else {
         const input = rpc(prettyJson);
         const output = cfg.sq.process(input);
-        text = extractText(output);
+        const text = extractText(output);
         chars = text.length;
         tokens = countTokensApprox(text);
       }
@@ -177,7 +175,7 @@ for (const scenario of scenarios) {
     }
 
     if (n !== sizes[sizes.length - 1]) {
-      console.log(`|------|--------|-------|---------|-------------|-----------|`);
+      console.log('|------|--------|-------|---------|-------------|-----------|');
     }
   }
 
@@ -194,6 +192,7 @@ console.log('|----------|-------------|----------|--------------|--------|------
 
 const bestSq = new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'psv' });
 const bestMd = new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'md' });
+const bestToon = new Squeezer({ verbose: false, flatten: true, stripEmpty: true, format: 'toon' });
 
 for (const scenario of scenarios) {
   const data = scenario.gen(100);
@@ -204,12 +203,17 @@ for (const scenario of scenarios) {
 
   const psvOut = extractText(bestSq.process(rpc(prettyJson)));
   const mdOut = extractText(bestMd.process(rpc(prettyJson)));
+  const toonOut = extractText(bestToon.process(rpc(prettyJson)));
   const psvTokens = countTokensApprox(psvOut);
   const mdTokens = countTokensApprox(mdOut);
+  const toonTokens = countTokensApprox(toonOut);
 
-  const best = psvTokens <= mdTokens
-    ? { tokens: psvTokens, fmt: 'PSV' }
-    : { tokens: mdTokens, fmt: 'MD' };
+  const candidates = [
+    { tokens: psvTokens, fmt: 'PSV' },
+    { tokens: mdTokens, fmt: 'MD' },
+    { tokens: toonTokens, fmt: 'TOON' },
+  ];
+  const best = candidates.reduce((a, b) => a.tokens <= b.tokens ? a : b);
   const savings = Math.round((1 - best.tokens / minTokens) * 100);
 
   const savingsStr = savings === 0 ? '0%' : savings > 0 ? `-${savings}%` : `+${Math.abs(savings)}%`;

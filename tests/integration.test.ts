@@ -148,7 +148,33 @@ describe('MAX_LINE_LENGTH bypass', () => {
   }, 30000);
 });
 
-// --- 5.11 Verbose mode ---
+// --- 5.11 Format selection ---
+
+describe('format selection via env var', () => {
+  it('MCP_SQUEEZE_FORMAT=md → markdown table output', async () => {
+    const { proc, done } = sh({ MCP_SQUEEZE_FORMAT: 'md' });
+    send(proc, { cmd: 'big', id: 1 });
+    send(proc, { cmd: 'exit', code: 0 });
+    const { stdout } = await done;
+    const parsed = JSON.parse(stdout.trim());
+    const text = parsed.result.content[0].text;
+    expect(text).toContain('|---|');
+    expect(text).not.toContain('## PSV');
+  });
+
+  it('MCP_SQUEEZE_FORMAT=toon → TOON output', async () => {
+    const { proc, done } = sh({ MCP_SQUEEZE_FORMAT: 'toon' });
+    send(proc, { cmd: 'big', id: 1 });
+    send(proc, { cmd: 'exit', code: 0 });
+    const { stdout } = await done;
+    const parsed = JSON.parse(stdout.trim());
+    const text = parsed.result.content[0].text;
+    expect(text).toContain('{id,name,email,active}:');
+    expect(text).not.toContain('## PSV');
+  });
+});
+
+// --- 5.12 Verbose mode ---
 
 describe('verbose mode', () => {
   it('optimization stats on stderr with [mcp-squeeze] prefix', async () => {

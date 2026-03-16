@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Null/empty column stripping: removes columns where all rows are null/undefined/empty string (10-20% extra savings on sparse data)
 - Dot-notation flattening: converts nested objects up to 3 levels deep (`profile.city`), arrays and deep values stringified as JSON
 - Markdown table output format as alternative to PSV, controlled by `MCP_SQUEEZE_FORMAT=md`
-- `MCP_SQUEEZE_FORMAT=psv|md` environment variable for output format selection
+- TOON (Token-Oriented Object Notation) output format: `[N]{field1,field2}:` header + comma-separated rows with smart quoting
+- `MCP_SQUEEZE_FORMAT=psv|md|toon` environment variable for output format selection
 - `MCP_SQUEEZE_NO_STRIP=1` environment variable to disable null/empty column stripping
 - `MCP_SQUEEZE_NO_FLATTEN=1` environment variable to disable dot-notation flattening
 - Benchmark script (`npm run bench`) with 5 scenarios × 4 sizes, comparing all strategies
@@ -27,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-V` CLI flag
 - MAX_LINE_LENGTH (10MB) bypass for oversized lines
 - Pipe escaping (`|` -> `\|`), backslash escaping, newline/CR escaping in PSV and Markdown values
-- Unit tests (40 tests), integration tests (13 tests), and smoke tests (26 tests)
+- Unit tests, integration tests, and smoke tests (97 total)
 - GitHub Actions CI workflow
 - ESLint with typescript-eslint and @stylistic/eslint-plugin
 - esbuild bundling with shebang injection and version define

@@ -31,9 +31,11 @@ const commandArgs = childArgs.slice(1);
 const disabled = process.env.MCP_SQUEEZE_DISABLED === '1';
 const verbose = process.env.MCP_SQUEEZE_VERBOSE === '1';
 const rawFormat = process.env.MCP_SQUEEZE_FORMAT;
-const format: Format = rawFormat === 'md' ? 'md' : 'psv';
+const format: Format = rawFormat === 'md' ? 'md' : rawFormat === 'toon' ? 'toon' : 'psv';
 const stripEmpty = process.env.MCP_SQUEEZE_NO_STRIP !== '1';
 const flatten = process.env.MCP_SQUEEZE_NO_FLATTEN !== '1';
+const parseText = process.env.MCP_SQUEEZE_NO_PARSE_TEXT !== '1';
+const unwrapContent = process.env.MCP_SQUEEZE_UNWRAP === '1';
 
 // --- 4.2 Spawn child process ---
 
@@ -63,7 +65,7 @@ if (disabled) {
     maybeExit();
   });
 } else {
-  const squeezer = new Squeezer({ verbose, format, stripEmpty, flatten });
+  const squeezer = new Squeezer({ verbose, format, stripEmpty, flatten, parseText, unwrapContent });
   const decoder = new StringDecoder('utf8');
   let buffer = '';
 

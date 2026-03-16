@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Squeezer } from '../src/squeezer.js';
-import { rpc, makeArray } from './helpers.js';
+import { rpc, makeArray, makeStructuredText, makeKeyValueText, makeBoldKeyValueText, makeHeaderSeparatedText } from './helpers.js';
 
 const sq = new Squeezer({});
 
@@ -55,7 +55,7 @@ describe('MIN_ITEMS guard', () => {
 
 describe('uniformity guard', () => {
   it('valid first 3 items, mismatched 4th → fallback to minified JSON', () => {
-    // SAMPLE_SIZE=3 — first 3 pass uniformity check, but 4th has extra key
+    // First 3 items are uniform, but 4th has extra key → full validation catches it
     const data = [
       { id: 1, name: 'a', email: 'a@b.com' },
       { id: 2, name: 'b', email: 'b@b.com' },
@@ -659,7 +659,7 @@ describe('newline escaping in PSV', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       name: `user_${i}`,
-      bio: `line1\nline2`,
+      bio: 'line1\nline2',
       email: `user${i}@example.com`,
     }));
     const text = JSON.stringify(data, null, 2);
@@ -720,10 +720,10 @@ describe('nested null stripping after flatten', () => {
 describe('key collision in flattening', () => {
   it('dot-notation key collides with nested key → fallback to minified JSON', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
+      'id': i + 1,
       'a.b': 1,
-      a: { b: 2 },
-      note: 'padding text to exceed the byte threshold easily',
+      'a': { b: 2 },
+      'note': 'padding text to exceed the byte threshold easily',
     }));
     const text = JSON.stringify(data, null, 2);
     const result = sq.process(rpc(text));
@@ -731,5 +731,628 @@ describe('key collision in flattening', () => {
     const out = parsed.result.content[0].text;
     // Key collision means flatten returns null → nested data → fallback
     expect(out).not.toContain('## PSV');
+  });
+});
+
+// --- 6.1 TOON format ---
+
+describe('TOON format', () => {
+  const toonSq = new Squeezer({ verbose: false, format: 'toon' });
+
+  it('produces TOON header with count and keys', () => {
+    const arr = makeArray(6);
+    const result = toonSq.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('[6]{id,name,email,active}:');
+  });
+
+  it('correct row count (header + N data rows)', () => {
+    const arr = makeArray(10);
+    const result = toonSq.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    // 1 header + 10 data rows
+    expect(lines).toHaveLength(11);
+  });
+
+  it('row values are comma-separated with 2-space indent', () => {
+    const arr = makeArray(6);
+    const result = toonSq.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toBe('  1,user_1,user1@example.com,true');
+  });
+
+  it('null values → null literal', () => {
+    const noStrip = new Squeezer({ verbose: false, format: 'toon', stripEmpty: false });
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: null,
+      email: `user${i}@example.com`,
+      note: 'padding text to exceed the byte threshold easily',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = noStrip.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toBe('  1,null,user0@example.com,padding text to exceed the byte threshold easily');
+  });
+
+  it('empty string → quoted ""', () => {
+    const noStrip = new Squeezer({ verbose: false, format: 'toon', stripEmpty: false });
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: '',
+      email: `user${i}@example.com`,
+      note: 'padding text to exceed the byte threshold easily',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = noStrip.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"",user0@example.com');
+  });
+
+  it('values containing comma → quoted', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: `last, first_${i}`,
+      email: `user${i}@example.com`,
+      note: 'padding to exceed threshold value',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"last, first_0"');
+  });
+
+  it('boolean and number values → unquoted', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      active: i % 2 === 0,
+      score: i * 10,
+      name: `user_${i}`,
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toBe('  1,true,0,user_0');
+    expect(lines[2]).toBe('  2,false,10,user_1');
+  });
+
+  it('string that looks like number → quoted', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      code: `${i + 100}abc`,
+      name: `user_${i}`,
+      note: 'padding text to exceed the byte threshold easily',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    // "100abc" starts with digit → must be quoted
+    expect(lines[1]).toContain('"100abc"');
+  });
+
+  it('string "true"/"false"/"null" → quoted to avoid ambiguity', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      val: i === 0 ? 'true' : i === 1 ? 'false' : i === 2 ? 'null' : `user_${i}`,
+      note: 'padding text to exceed the byte threshold easily',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"true"');
+    expect(lines[2]).toContain('"false"');
+    expect(lines[3]).toContain('"null"');
+  });
+
+  it('newline in value → escaped as \\n', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      bio: 'line1\nline2',
+      name: `user_${i}`,
+      email: `user${i}@example.com`,
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    // Newlines must be escaped, so total lines = header + data rows only
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(11);
+    expect(lines[1]).toContain('line1\\nline2');
+  });
+
+  it('same data: default → PSV, format=toon → TOON', () => {
+    const arr = makeArray(6);
+    const psvResult = sq.process(rpc(arr));
+    const toonResult = toonSq.process(rpc(arr));
+    const psvOut = JSON.parse(psvResult).result.content[0].text;
+    const toonOut = JSON.parse(toonResult).result.content[0].text;
+    expect(psvOut).toContain('## PSV');
+    expect(toonOut).toContain('{id,name,email,active}:');
+    expect(toonOut).not.toContain('## PSV');
+  });
+
+  it('values with double quotes → escaped', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: `say "hello"_${i}`,
+      email: `user${i}@example.com`,
+      note: 'padding to exceed threshold value',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"say \\"hello\\"_0"');
+  });
+
+  it('values with backslash → escaped', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: `path\\to\\file_${i}`,
+      email: `user${i}@example.com`,
+      note: 'padding to exceed threshold value',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"path\\\\to\\\\file_0"');
+  });
+
+  it('TOON + flatten (nested objects with dot-notation keys)', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: `user_${i}`,
+      address: { city: 'Kyiv', zip: '01001' },
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('{id,name,address.city,address.zip}:');
+    expect(out).toContain('Kyiv');
+    expect(out).toContain('01001');
+  });
+
+  it('TOON + stripEmpty (all-null column removed)', () => {
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      deleted_at: null,
+      name: `user_${i}`,
+      note: 'padding text to exceed the byte threshold easily',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('deleted_at');
+    expect(out).toContain('{id,name,note}:');
+  });
+
+  it('10-row stable snapshot', () => {
+    const arr = makeArray(10);
+    const result = toonSq.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toMatchInlineSnapshot(`
+      "[10]{id,name,email,active}:
+        1,user_1,user1@example.com,true
+        2,user_2,user2@example.com,true
+        3,user_3,user3@example.com,true
+        4,user_4,user4@example.com,true
+        5,user_5,user5@example.com,true
+        6,user_6,user6@example.com,true
+        7,user_7,user7@example.com,true
+        8,user_8,user8@example.com,true
+        9,user_9,user9@example.com,true
+        10,user_10,user10@example.com,true"
+    `);
+  });
+});
+
+// --- 7.1 Structured text parsing ---
+
+describe('structured text parsing', () => {
+  it('Context7-style text with 5+ sections → PSV', () => {
+    const text = makeStructuredText(6);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('6 rows');
+    expect(out).toContain('Title');
+    expect(out).toContain('Library_1');
+  });
+
+  it('fewer than 5 sections → unchanged', () => {
+    const text = makeStructuredText(3);
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+    expect(out).toBe(text);
+  });
+
+  it('structured text with markdown format', () => {
+    const mdSq = new Squeezer({ format: 'md' });
+    const text = makeStructuredText(6);
+    const result = mdSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('|---|');
+    expect(out).toContain('Library_1');
+  });
+
+  it('structured text with TOON format', () => {
+    const toonSq = new Squeezer({ format: 'toon' });
+    const text = makeStructuredText(6);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('{Title,ID,Description,Code Snippets,Score}:');
+    expect(out).toContain('Library_1');
+  });
+
+  it('values containing colons (URLs) → correctly parsed', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `- Name: item_with_a_longer_name_${i + 1}`,
+      `- URL: https://example.com/very/long/path/to/resource/${i + 1}`,
+      `- Status: active`,
+      `- Description: This is a longer description to exceed the byte threshold for item ${i + 1}`,
+    ].join('\n'));
+    const text = sections.join('\n----------\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('https://example.com/very/long/path/to/resource/1');
+  });
+
+  it('inconsistent keys across sections → uses intersection', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => {
+      const lines = [
+        `- Name: item_with_a_longer_name_for_testing_${i + 1}`,
+        `- Score: ${i * 10}`,
+        `- Description: Padding text to make this section long enough to exceed the minimum byte threshold`,
+      ];
+      if (i % 2 === 0) lines.push(`- Extra: bonus_${i}`);
+      return lines.join('\n');
+    });
+    const text = sections.join('\n----------\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('Name');
+    expect(out).toContain('Score');
+    expect(out).toContain('Description');
+    expect(out).not.toContain('Extra');
+  });
+
+  it('fewer than 2 common keys → unchanged', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => {
+      return `- Key${i}: value_${i}\n- Other${i}: data_${i}`;
+    });
+    const text = sections.join('\n----------\n');
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+  });
+
+  it('disabled via parseText: false', () => {
+    const noParseText = new Squeezer({ parseText: false });
+    const text = makeStructuredText(6);
+    const line = rpc(text);
+    const result = noParseText.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+    expect(out).toBe(text);
+  });
+
+  it('valid JSON text → takes JSON path, not structured text', () => {
+    const arr = makeArray(10);
+    const result = sq.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('id,name,email,active');
+  });
+
+  it('text shorter than MIN_CHARS → not attempted', () => {
+    const text = '- Title: A\n- ID: B\n----------\n- Title: C\n- ID: D';
+    expect(text.length).toBeLessThan(512);
+    const line = rpc(text);
+    expect(sq.process(line)).toBe(line);
+  });
+});
+
+// --- 7.2 Universal text parsing (combinatorial separators × patterns) ---
+
+describe('blank-line separated Key: Value text', () => {
+  it('5+ sections with Key: Value → PSV', () => {
+    const text = makeKeyValueText(6);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('6 rows');
+    expect(out).toContain('Library_1');
+  });
+
+  it('fewer than 5 sections → unchanged', () => {
+    const text = makeKeyValueText(3);
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+  });
+
+  it('Key: Value with TOON format', () => {
+    const toonSq = new Squeezer({ format: 'toon' });
+    const text = makeKeyValueText(6);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('{Name,Version,Description,Downloads,License}:');
+  });
+});
+
+describe('markdown bold **Key**: Value text', () => {
+  it('5+ sections → PSV', () => {
+    const text = makeBoldKeyValueText(6);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('Library_1');
+  });
+
+  it('markdown bold with md format', () => {
+    const mdSq = new Squeezer({ format: 'md' });
+    const text = makeBoldKeyValueText(6);
+    const result = mdSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('|---|');
+    expect(out).toContain('Library_1');
+  });
+});
+
+describe('markdown-header separated text', () => {
+  it('5+ sections with ## headers → PSV', () => {
+    const text = makeHeaderSeparatedText(6);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('Library_1');
+  });
+});
+
+describe('density guard', () => {
+  it('prose with occasional colons → not parsed as structured text', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `This is paragraph ${i + 1} about something interesting.`,
+      `It has some text with a colon: but it is not structured.`,
+      `More prose follows here without any key-value pattern.`,
+      `And even more text to make the section substantial enough.`,
+      `Final line: concluding thoughts on topic ${i + 1}.`,
+    ].join('\n'));
+    const text = sections.join('\n\n');
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+  });
+
+  it('high density sections pass (4/5 = 80%)', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `Intro text for item ${i + 1}`,
+      `Name: Library_${i + 1}`,
+      `Version: ${i + 1}.0.0`,
+      `Description: A library for doing thing ${i + 1} with padding text`,
+      `License: MIT`,
+    ].join('\n'));
+    const text = sections.join('\n\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+  });
+});
+
+describe('combinatorial scoring', () => {
+  it('picks strategy with highest score (records × keys)', () => {
+    // Context7 format uses dash separator + bullet KV — should still work
+    const text = makeStructuredText(8);
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('8 rows');
+  });
+});
+
+// --- 7.2.1 Edge cases ---
+
+describe('text parsing edge cases', () => {
+  it('density exactly 60% (3/5 lines) → passes', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `Heading for item ${i + 1}`,
+      `Subheading for context`,
+      `Name: Library_${i + 1}`,
+      `Version: ${i + 1}.0.0`,
+      `License: MIT`,
+    ].join('\n'));
+    const text = sections.join('\n\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+  });
+
+  it('density below 60% (2/5 lines) → not parsed', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `Heading for item ${i + 1}`,
+      `Some prose about the topic.`,
+      `More context and background.`,
+      `Name: Library_${i + 1}`,
+      `Version: ${i + 1}.0.0`,
+    ].join('\n'));
+    const text = sections.join('\n\n');
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+  });
+
+  it('values with colons (timestamps) → key is first part only', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `- Name: item_${i + 1}`,
+      `- Time: 12:30:45`,
+      `- Status: active`,
+      `- Note: Important: do not remove this item from the list`,
+    ].join('\n'));
+    const text = sections.join('\n----------\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('12:30:45');
+    expect(out).toContain('Important: do not remove this item from the list');
+  });
+
+  it('sections with URLs → URL preserved in value', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `- Name: project_${i + 1}`,
+      `- URL: https://example.com/path/to/resource/${i + 1}`,
+      `- Stars: ${(i + 1) * 100}`,
+      `- Description: A project about something interesting number ${i + 1}`,
+    ].join('\n'));
+    const text = sections.join('\n----------\n');
+    const result = sq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('## PSV');
+    expect(out).toContain('https://example.com/path/to/resource/1');
+  });
+
+  it('header-separated text with fewer than 5 sections → unchanged', () => {
+    const text = makeHeaderSeparatedText(3);
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).not.toContain('## PSV');
+  });
+
+  it('header-separated text with TOON format', () => {
+    const toonSq = new Squeezer({ format: 'toon' });
+    const text = makeHeaderSeparatedText(6);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    expect(out).toContain('{');
+    expect(out).toContain('Library_1');
+  });
+
+  it('bold pattern requires colon (**Key** Value without colon → not matched)', () => {
+    const sections = Array.from({ length: 6 }, (_, i) => [
+      `**Name** Library_${i + 1}`,
+      `**Version** ${i + 1}.0.0`,
+      `**Description** A library for doing thing ${i + 1} with padding`,
+      `**License** MIT`,
+    ].join('\n'));
+    const text = sections.join('\n\n');
+    const line = rpc(text);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    // Without colon, bold pattern should NOT match
+    expect(out).not.toContain('## PSV');
+  });
+});
+
+// --- 7.3 Content wrapper compression ---
+
+describe('content wrapper compression', () => {
+  it('single text block with unwrapContent: true → content becomes string', () => {
+    const unwrap = new Squeezer({ unwrapContent: true });
+    const line = rpc('Hello world');
+    const result = unwrap.process(line);
+    const parsed = JSON.parse(result);
+    expect(parsed.result.content).toBe('Hello world');
+  });
+
+  it('single text block with unwrapContent: false → content stays array', () => {
+    const line = rpc('Hello world');
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    expect(Array.isArray(parsed.result.content)).toBe(true);
+  });
+
+  it('multiple text blocks with unwrapContent: true → content stays array', () => {
+    const unwrap = new Squeezer({ unwrapContent: true });
+    const line = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        content: [
+          { type: 'text', text: 'Hello' },
+          { type: 'text', text: 'World' },
+        ],
+      },
+    });
+    const result = unwrap.process(line);
+    const parsed = JSON.parse(result);
+    expect(Array.isArray(parsed.result.content)).toBe(true);
+  });
+
+  it('non-text content type with unwrapContent: true → content stays array', () => {
+    const unwrap = new Squeezer({ unwrapContent: true });
+    const line = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { content: [{ type: 'image', data: 'base64...' }] },
+    });
+    const result = unwrap.process(line);
+    expect(result).toBe(line);
+  });
+
+  it('unwrap + optimization combined', () => {
+    const unwrap = new Squeezer({ unwrapContent: true });
+    const arr = makeArray(10);
+    const result = unwrap.process(rpc(arr));
+    const parsed = JSON.parse(result);
+    expect(typeof parsed.result.content).toBe('string');
+    expect(parsed.result.content).toContain('## PSV');
   });
 });

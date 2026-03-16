@@ -1,7 +1,7 @@
 {
   "name": "mcp-squeeze",
   "version": "1.0.0",
-  "description": "MCP token optimizer — stdio shim that transforms verbose JSON into token-efficient formats, saving 35-64% on tokens",
+  "description": "MCP token optimizer — stdio shim that transforms verbose JSON into token-efficient formats, saving 45-72% on tokens",
   "type": "module",
   "bin": {
     "mcp-squeeze": "./dist/index.js"
