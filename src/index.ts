@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { Squeezer, Format } from './squeezer.js';
+import { appendStat, printStats, resetStats } from './stats.js';
 
 declare const VERSION: string;
 
@@ -14,6 +15,16 @@ const ownArgs = sepIndex === -1 ? args : args.slice(0, sepIndex);
 
 if (ownArgs.includes('--version') || ownArgs.includes('-V')) {
   process.stdout.write(`mcp-squeeze v${VERSION}\n`);
+  process.exit(0);
+}
+
+if (ownArgs.includes('--stats')) {
+  if (ownArgs.includes('--reset')) {
+    const deleted = resetStats();
+    process.stdout.write(deleted ? 'Stats reset.\n' : 'No stats to reset.\n');
+  } else {
+    printStats();
+  }
   process.exit(0);
 }
 
@@ -79,7 +90,11 @@ if (disabled) {
       }
       process.stdout.write(line + '\n');
     } else {
-      process.stdout.write(squeezer.process(line) + '\n');
+      const result = squeezer.process(line);
+      if (result !== line) {
+        appendStat(Buffer.byteLength(line), Buffer.byteLength(result));
+      }
+      process.stdout.write(result + '\n');
     }
   };
 

@@ -1,3 +1,5 @@
+import { BYTES_PER_TOKEN } from './stats.js';
+
 const MIN_CHARS = 512;
 const MIN_ITEMS = 5;
 const MAX_FLATTEN_DEPTH = 3;
@@ -445,7 +447,7 @@ export class Squeezer {
 
   private logStats(id: unknown, originalBytes: number, optimizedBytes: number): void {
     const ratio = Math.round((1 - optimizedBytes / originalBytes) * 100);
-    const tokensSaved = Math.round((originalBytes - optimizedBytes) / 4);
+    const tokensSaved = Math.round((originalBytes - optimizedBytes) / BYTES_PER_TOKEN);
     const sign = ratio >= 0 ? '-' : '+';
     const tokensLabel = tokensSaved >= 0
       ? `~${tokensSaved} tokens saved`
