@@ -26,9 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MCP_SQUEEZE_DISABLED=1` environment variable for full bypass mode
 - `MCP_SQUEEZE_VERBOSE=1` environment variable for optimization stats on stderr
 - `--version` / `-V` CLI flag
+- `--stats` CLI command: show cumulative token savings across sessions
+- `--stats --reset` CLI command: clear stats history
+- Append-only stats log (`~/.mcp-squeeze/stats.log`): tracks optimization metrics per call, safe for multi-process
+- `MCP_SQUEEZE_STATS_PATH` environment variable to override stats log location
+- Structured text parsing: detects repeating key-value patterns in plain text (e.g., Context7 responses) and converts to tabular format
+- `MCP_SQUEEZE_NO_PARSE_TEXT=1` environment variable to disable structured text parsing
+- Content wrapper unwrap: opt-in replacement of `[{type:"text",text:"..."}]` with plain string
+- `MCP_SQUEEZE_UNWRAP=1` environment variable for content unwrap (breaks MCP spec, verify client compatibility)
 - MAX_LINE_LENGTH (10MB) bypass for oversized lines
 - Pipe escaping (`|` -> `\|`), backslash escaping, newline/CR escaping in PSV and Markdown values
-- Unit tests, integration tests, and smoke tests (97 total)
+- Unit tests, integration tests, and smoke tests (139 total)
 - GitHub Actions CI workflow
 - ESLint with typescript-eslint and @stylistic/eslint-plugin
 - esbuild bundling with shebang injection and version define

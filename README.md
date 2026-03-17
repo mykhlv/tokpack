@@ -108,7 +108,8 @@ It intercepts JSON-RPC responses and applies a pipeline of optimizations:
 
 1. **Null/empty stripping** — removes columns where all values are null/undefined/empty
 2. **Dot-notation flattening** — converts nested objects to flat keys (`profile.city`)
-3. **Tabular conversion** — converts uniform arrays to PSV or Markdown table format
+3. **Structured text parsing** — detects repeating key-value patterns in plain text and converts to tabular format
+4. **Tabular conversion** — converts uniform arrays to PSV, Markdown table, or TOON format
 
 Example PSV output:
 ```
@@ -135,6 +136,22 @@ Example PSV output:
 | `MCP_SQUEEZE_FORMAT` | `psv` | Output format: `psv`, `md` (Markdown table), or `toon` (TOON) |
 | `MCP_SQUEEZE_NO_STRIP` | `0` | Set to `1` to disable null/empty column stripping |
 | `MCP_SQUEEZE_NO_FLATTEN` | `0` | Set to `1` to disable dot-notation flattening |
+| `MCP_SQUEEZE_NO_PARSE_TEXT` | `0` | Set to `1` to disable structured text parsing |
+| `MCP_SQUEEZE_UNWRAP` | `0` | Set to `1` to unwrap single-text content blocks (opt-in) |
+
+## Token Savings Stats
+
+mcp-squeeze tracks cumulative optimization stats across sessions:
+
+```bash
+npx mcp-squeeze --stats
+# mcp-squeeze stats:
+#   Optimizations: 47
+#   Original: 375.0 KB → Optimized: 138.7 KB
+#   Saved: 236.3 KB (63%) ~59,075 tokens
+
+npx mcp-squeeze --stats --reset  # Clear stats
+```
 
 ## Limitations
 
