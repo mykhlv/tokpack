@@ -4,7 +4,7 @@ Pack more data into fewer tokens — JSON compression library and CLI tool for L
 
 Works as a **library** (`import { pack } from 'tokpack'`), a **CLI pipe** (`cat data.json | tokpack`), and an **MCP proxy** for any MCP-compatible client.
 
-Zero runtime dependencies. Node.js >= 18.
+Zero runtime dependencies. Node.js >= 20.
 
 ## Benchmarks
 
