@@ -388,6 +388,7 @@ export class Squeezer {
     const keys = Object.keys(data[0]);
     if (keys.length === 0) return null;
     if (this.format === 'psv' && keys.some(k => /[,|]/.test(k))) return null;
+    if (this.format === 'md' && keys.some(k => k.includes('|'))) return null;
     if (this.format === 'toon' && keys.some(k => /[,{}:]/.test(k))) return null;
 
     const keyCount = keys.length;
