@@ -1,6 +1,6 @@
 {
   "name": "tokpack",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pack more data into fewer tokens — JSON compression library for LLM context optimization",
   "type": "module",
   "main": "./dist/lib.cjs",
@@ -14,14 +14,15 @@
     }
   },
   "bin": {
-    "tokpack": "./dist/index.js"
+    "tokpack": "dist/index.js"
   },
   "files": [
     "dist/index.js",
     "dist/lib.mjs",
     "dist/lib.cjs",
     "dist/lib.d.ts",
-    "dist/lib.d.ts.map"
+    "dist/lib.d.ts.map",
+    "PSV_SPEC.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -51,7 +52,7 @@
   "author": "tokpack contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mykhlv/tokpack"
+    "url": "git+https://github.com/mykhlv/tokpack.git"
   },
   "bugs": {
     "url": "https://github.com/mykhlv/tokpack/issues"

@@ -434,7 +434,7 @@ export class Squeezer {
   }
 
   private toPSV(data: Row[], keys: string[]): string {
-    const header = `## PSV|${keys.join(',')}|${data.length} rows`;
+    const header = `## PSV|${keys.join(',')}`;
     const rows = this.extractRowValues(data, keys, Squeezer.psvEncode);
     return `${header}\n${rows.map(v => v.join('|')).join('\n')}`;
   }

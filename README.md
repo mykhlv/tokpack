@@ -2,7 +2,10 @@
 
 Pack more data into fewer tokens — JSON compression library and CLI tool for LLM context optimization. Transforms verbose JSON arrays and structured text into token-efficient tabular formats (PSV, Markdown, TOON), saving 45-72% on tokens.
 
-Works as a **library** (`import { pack } from 'tokpack'`), a **CLI pipe** (`cat data.json | tokpack`), and an **MCP proxy** for any MCP-compatible client.
+Three ways to use:
+- **Library** — `import { pack } from 'tokpack'`
+- **CLI pipe** — `cat data.json | tokpack`
+- **MCP proxy** — wraps any MCP server, transparent to the client
 
 Zero runtime dependencies. Node.js >= 20.
 
@@ -100,10 +103,23 @@ Add tokpack as a wrapper in your MCP client config:
 }
 ```
 
-Generate config automatically:
+Or generate the config snippet automatically with `--wrap`. Example:
 
 ```bash
 npx tokpack --wrap npx -y @modelcontextprotocol/server-postgres
+```
+
+Output:
+
+```
+Add to your MCP client config:
+
+"mcpServers": {
+  "server-postgres": {
+    "command": "npx",
+    "args": ["-y", "tokpack", "--mcp", "--", "npx", "-y", "@modelcontextprotocol/server-postgres"]
+  }
+}
 ```
 
 No changes needed to your MCP servers.
@@ -125,7 +141,7 @@ const users = [
   // ...
 ];
 pack(users);
-// => "## PSV|id,name,role|3 rows\n1|Alice|admin\n2|Bob|user\n3|Charlie|editor"
+// => "## PSV|id,name,role\n1|Alice|admin\n2|Bob|user\n3|Charlie|editor"
 
 pack(users, { format: 'md' });
 // => "| id | name | role |\n|---|---|---|\n| 1 | Alice | admin |..."
@@ -154,9 +170,9 @@ Processes each line independently — works with JSONL and structured text.
 tokpack intercepts data and applies a pipeline of optimizations:
 
 ```
-MCP client → tokpack → MCP server              (proxy mode)
-stdin → tokpack → stdout                       (pipe mode)
-pack(data) → compressed string                 (library)
+MCP client → tokpack → MCP server       (proxy mode)
+stdin → tokpack → stdout                (pipe mode)
+pack(data) → compressed string          (library)
 ```
 
 **Decision flow:**
@@ -170,10 +186,10 @@ pack(data) → compressed string                 (library)
 
 ## Output Formats
 
-### PSV (default)
+### PSV (default) — [spec](PSV_SPEC.md)
 
 ```
-## PSV|name,role,email|3 rows
+## PSV|name,role,email
 Alice|admin|alice@example.com
 Bob|user|bob@example.com
 Charlie|editor|charlie@example.com
@@ -189,7 +205,7 @@ Charlie|editor|charlie@example.com
 | Charlie | editor | charlie@example.com |
 ```
 
-### TOON
+### TOON — [spec](https://github.com/toon-format/spec)
 
 ```
 [3]{name,role,email}:
@@ -205,7 +221,7 @@ Run `tokpack --formats` to see examples with real data.
 ```
 Usage:
   cat data.jsonl | tokpack [options]              Pipe/filter mode
-  tokpack --mcp [options] -- <command> [args...]   MCP proxy mode
+  tokpack --mcp [options] -- <command> [args...]  MCP proxy mode
 ```
 
 ### Options

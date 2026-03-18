@@ -23,7 +23,6 @@ describe('squeezer smoke', () => {
     const parsed = JSON.parse(result);
     const text = parsed.result.content[0].text;
     expect(text).toContain('## PSV');
-    expect(text).toContain('10 rows');
   });
 
   it('nested data → flattened to PSV', () => {

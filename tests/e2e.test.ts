@@ -101,7 +101,6 @@ describe('CLI pipe mode', () => {
   it('default format (PSV) with JSON array input', () => {
     const out = cli([], { input: jsonInput });
     expect(out).toContain('## PSV');
-    expect(out).toContain('10 rows');
   });
 
   it('--format md outputs markdown table', () => {

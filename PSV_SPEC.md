@@ -10,7 +10,7 @@ PSV is a compact tabular text format designed for token-efficient data transfer 
 A PSV document consists of exactly one **header line** followed by zero or more **data rows**, separated by newline (`\n`) characters.
 
 ```
-## PSV|col1,col2,col3|N rows
+## PSV|col1,col2,col3
 val1|val2|val3
 val4|val5|val6
 ```
@@ -18,22 +18,20 @@ val4|val5|val6
 ## Header
 
 ```
-## PSV|<columns>|<count> rows
+## PSV|<columns>
 ```
 
 | Component | Description |
 |-----------|-------------|
 | `## PSV` | Fixed magic prefix identifying the format |
 | `<columns>` | Comma-separated list of column names (no spaces) |
-| `<count>` | Integer number of data rows that follow |
-| `rows` | Fixed literal suffix |
 
 Column names must not contain commas. The header is always a single line.
 
 **Example:**
 
 ```
-## PSV|id,name,email,active|100 rows
+## PSV|id,name,email,active
 ```
 
 ## Data Rows
@@ -67,7 +65,7 @@ Four characters require escaping within values:
 | newline | `\n` | Prevents breaking the row-per-line structure |
 | carriage return | `\r` | Prevents breaking the row-per-line structure |
 
-Escaping is applied in a single pass. No other characters are escaped. Unicode content (including emoji) is preserved as-is.
+Escaping is a **per-character substitution** (lookup table): each input character maps to exactly one output independently. Because no input character matches more than one rule, the order of replacement rules does not affect the result — implementors in any language can apply the rules in any order or as a single-pass table lookup. No other characters are escaped. Unicode content (including emoji) is preserved as-is.
 
 ### Escaping Examples
 
@@ -94,10 +92,9 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 ```
 1. Read the first line as the header.
 2. Verify it starts with "## PSV|".
-3. Split by "|" to extract: magic, columns_string, count_string.
+3. Split by "|" to extract: magic and columns_string.
 4. Split columns_string by "," to get column names.
-5. Parse count from count_string (strip " rows" suffix).
-6. For each subsequent line:
+5. For each subsequent line:
    a. Split by "|" respecting escapes (unescaped pipes only).
    b. Unescape each value: \| → |, \\ → \, \n → newline, \r → CR.
    c. Map values to column names by position.
@@ -119,7 +116,7 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 **Output (PSV):**
 
 ```
-## PSV|id,name,email,active|3 rows
+## PSV|id,name,email,active
 1|Alice|alice@example.com|true
 2|Bob|bob@example.com|false
 3|Carol O'Brien|carol@example.com|true

@@ -20,7 +20,7 @@ export type { Format, PackOptions };
  * ];
  *
  * pack(users);
- * // => "## PSV|id,name,role|2 rows\n1|Alice|admin\n2|Bob|user"
+ * // => "## PSV|id,name,role\n1|Alice|admin\n2|Bob|user"
  *
  * pack(users, { format: 'md' });
  * // => "| id | name | role |\n|---|---|---|\n| 1 | Alice | admin |..."

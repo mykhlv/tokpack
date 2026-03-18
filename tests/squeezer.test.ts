@@ -48,7 +48,6 @@ describe('MIN_ITEMS guard', () => {
     const parsed = JSON.parse(result);
     const text = parsed.result.content[0].text;
     expect(text).toContain('## PSV');
-    expect(text).toContain('6 rows');
   });
 });
 
@@ -327,13 +326,13 @@ describe('quick filter', () => {
 // --- 3.8 PSV format verification ---
 
 describe('PSV format', () => {
-  it('header format: ## PSV|key1,key2,...|N rows', () => {
+  it('header format: ## PSV|key1,key2,...', () => {
     const arr = makeArray(8);
     const result = sq.process(rpc(arr));
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     const header = out.split('\n')[0];
-    expect(header).toBe('## PSV|id,name,email,active|8 rows');
+    expect(header).toBe('## PSV|id,name,email,active');
   });
 
   it('row format: val1|val2|...', () => {
@@ -386,7 +385,7 @@ describe('snapshots', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     const lines = out.split('\n');
-    expect(lines[0]).toBe('## PSV|id,name,email,active|50 rows');
+    expect(lines[0]).toBe('## PSV|id,name,email,active');
     expect(lines).toHaveLength(51); // 1 header + 50 rows
     expect(lines[1]).toBe('1|user_1|user1@example.com|true');
     expect(lines[50]).toBe('50|user_50|user50@example.com|true');
@@ -398,7 +397,7 @@ describe('snapshots', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     expect(out).toMatchInlineSnapshot(`
-      "## PSV|id,name,email,active|10 rows
+      "## PSV|id,name,email,active
       1|user_1|user1@example.com|true
       2|user_2|user2@example.com|true
       3|user_3|user3@example.com|true
@@ -982,7 +981,6 @@ describe('structured text parsing', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     expect(out).toContain('## PSV');
-    expect(out).toContain('6 rows');
     expect(out).toContain('Title');
     expect(out).toContain('Library_1');
   });
@@ -1102,7 +1100,6 @@ describe('blank-line separated Key: Value text', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     expect(out).toContain('## PSV');
-    expect(out).toContain('6 rows');
     expect(out).toContain('Library_1');
   });
 
@@ -1198,7 +1195,6 @@ describe('combinatorial scoring', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     expect(out).toContain('## PSV');
-    expect(out).toContain('8 rows');
   });
 });
 
