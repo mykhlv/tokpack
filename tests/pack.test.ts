@@ -32,7 +32,7 @@ describe('pack()', () => {
     const obj: Record<string, unknown> = { a: 1 };
     obj.self = obj;
     const result = pack(obj);
-    expect(typeof result).toBe('string');
+    expect(result).toBe('[object Object]');
   });
 
   it('createPacker().pack() matches pack() for undefined', () => {

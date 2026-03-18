@@ -19,11 +19,8 @@ if (hasFlag('--bench')) runBench(flagValue('--bench'));
 if (hasFlag('--wrap')) runWrap(parsed.ownArgs);
 if (hasFlag('--test')) {
   runTest(process.argv.slice(2), parsed.sepIndex);
-}
-
-// --- Determine mode ---
-
-if (!hasChildCommand && !isPipe && !hasFlag('--test')) {
+  // runTest is async (spawns child, exits in callbacks) — prevent fall-through
+} else if (!hasChildCommand && !isPipe) {
   process.stderr.write(
     'Usage: cat data.jsonl | tokpack [options]\n'
     + '       tokpack --mcp [options] -- <command> [args...]\n'
@@ -34,7 +31,7 @@ if (!hasChildCommand && !isPipe && !hasFlag('--test')) {
 
 // --- Pipe mode: stdin → pack → stdout ---
 
-if (isPipe) {
+if (!hasFlag('--test') && isPipe) {
   const processor = isMcpMode ? createMcpLineProcessor(opts) : createPipeLineProcessor(opts);
   processStream(process.stdin, processor, opts, () => {
     process.exit(0);
@@ -49,7 +46,7 @@ if (isPipe) {
 
 // --- MCP Proxy mode: spawn child, intercept stdout ---
 
-if (hasChildCommand) {
+if (!hasFlag('--test') && hasChildCommand) {
   const command = childArgs[0];
   const commandArgs = childArgs.slice(1);
 

@@ -196,7 +196,7 @@ function benchSize(data: Record<string, unknown>[], prettyJson: string, minJson:
 // Main
 // ---------------------------------------------------------------------------
 
-console.log('# mcp-squeeze benchmarks\n');
+console.log('# tokpack benchmarks\n');
 console.log(`Generated: ${new Date().toISOString().slice(0, 10)}\n`);
 
 for (const scenario of scenarios) {
