@@ -14,14 +14,15 @@
     }
   },
   "bin": {
-    "tokpack": "./dist/index.js"
+    "tokpack": "dist/index.js"
   },
   "files": [
     "dist/index.js",
     "dist/lib.mjs",
     "dist/lib.cjs",
     "dist/lib.d.ts",
-    "dist/lib.d.ts.map"
+    "dist/lib.d.ts.map",
+    "PSV_SPEC.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -51,7 +52,7 @@
   "author": "tokpack contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mykhlv/tokpack"
+    "url": "git+https://github.com/mykhlv/tokpack.git"
   },
   "bugs": {
     "url": "https://github.com/mykhlv/tokpack/issues"

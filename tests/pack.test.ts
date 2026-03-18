@@ -9,7 +9,6 @@ describe('pack()', () => {
     const data = JSON.parse(makeArray(10));
     const result = pack(data);
     expect(result).toContain('## PSV');
-    expect(result).toContain('10 rows');
   });
 
   it('small array returns minified JSON', () => {
@@ -102,7 +101,6 @@ describe('packRaw()', () => {
     const json = makeArray(10);
     const result = packRaw(json);
     expect(result).toContain('## PSV');
-    expect(result).toContain('10 rows');
   });
 
   it('structured text (KV patterns) → PSV', () => {

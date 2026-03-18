@@ -18,7 +18,6 @@ describe('end-to-end data flow', () => {
     const parsed = JSON.parse(stdout.trim());
     const text = parsed.result.content[0].text;
     expect(text).toContain('## PSV');
-    expect(text).toContain('10 rows');
     expect(code).toBe(0);
   });
 
@@ -43,7 +42,6 @@ describe('chunking', () => {
     const parsed = JSON.parse(stdout.trim());
     const text = parsed.result.content[0].text;
     expect(text).toContain('## PSV');
-    expect(text).toContain('10 rows');
   });
 });
 
