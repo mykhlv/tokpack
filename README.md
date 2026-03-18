@@ -1,23 +1,27 @@
-# mcp-squeeze
+# tokpack
 
-MCP token optimizer — transparent stdio shim that transforms verbose JSON responses into token-efficient formats, saving 45-72% on tokens.
+Pack more data into fewer tokens — JSON compression library and CLI tool for LLM context optimization. Transforms verbose JSON arrays and structured text into token-efficient tabular formats (PSV, Markdown, TOON), saving 45-72% on tokens.
+
+Works as a **library** (`import { pack } from 'tokpack'`), a **CLI pipe** (`cat data.json | tokpack`), and an **MCP proxy** for any MCP-compatible client.
+
+Zero runtime dependencies. Node.js >= 18.
 
 ## Benchmarks
 
 Summary at 100 rows (tokens, ~4 chars/token):
 
-| Scenario | JSON min | mcp-squeeze | Savings |
-|----------|----------|-------------|---------|
+| Scenario | JSON min | tokpack | Savings |
+|----------|----------|---------|---------|
 | Flat (DB users) | 2,141 | 1,051 | **-51%** |
 | Nested (profiles) | 2,655 | 1,120 | **-58%** |
 | Null-heavy (sparse) | 3,611 | 1,046 | **-71%** |
 | DB rows (tasks) | 7,410 | 4,077 | **-45%** |
 | Mixed (nested+nulls) | 4,016 | 1,114 | **-72%** |
 
-Run `npm run bench` to reproduce. Full results below.
+Run `npm run bench` to reproduce.
 
 <details>
-<summary>Detailed benchmarks (all scenarios × 10/50/100/500 rows)</summary>
+<summary>Detailed benchmarks (all scenarios x 10/50/100/500 rows)</summary>
 
 ### Flat (DB users)
 
@@ -81,85 +85,178 @@ Run `npm run bench` to reproduce. Full results below.
 
 ## Quick Start
 
-Add `mcp-squeeze` as a wrapper in your MCP client config:
+### MCP Proxy
+
+Add tokpack as a wrapper in your MCP client config:
 
 ```json
 {
   "mcpServers": {
     "my-db": {
       "command": "npx",
-      "args": ["-y", "mcp-squeeze", "--", "node", "my-db-server.js"]
+      "args": ["-y", "tokpack", "--mcp", "--", "node", "my-db-server.js"]
     }
   }
 }
 ```
 
-No changes needed to Claude or to your MCP servers.
+Generate config automatically:
+
+```bash
+npx tokpack --wrap npx -y @modelcontextprotocol/server-postgres
+```
+
+No changes needed to your MCP servers.
+
+### Library
+
+```bash
+npm install tokpack
+```
+
+```typescript
+import { pack, packRaw, createPacker } from 'tokpack';
+
+// Pack structured data
+const users = [
+  { id: 1, name: 'Alice', role: 'admin' },
+  { id: 2, name: 'Bob', role: 'user' },
+  { id: 3, name: 'Charlie', role: 'editor' },
+  // ...
+];
+pack(users);
+// => "## PSV|id,name,role|3 rows\n1|Alice|admin\n2|Bob|user\n3|Charlie|editor"
+
+pack(users, { format: 'md' });
+// => "| id | name | role |\n|---|---|---|\n| 1 | Alice | admin |..."
+
+// Pack raw text or JSON strings
+packRaw('[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"},...]');
+
+// Reusable packer with fixed options
+const packer = createPacker({ format: 'toon' });
+packer.pack(data);
+packer.packRaw(text);
+```
+
+### Pipe Mode
+
+```bash
+cat data.jsonl | tokpack
+cat data.jsonl | tokpack --format toon
+echo '[{"id":1},{"id":2},{"id":3}]' | tokpack
+```
+
+Processes each line independently — works with JSONL and structured text.
 
 ## How It Works
 
-mcp-squeeze sits between the MCP client and server as a stdio proxy:
+tokpack intercepts data and applies a pipeline of optimizations:
 
 ```
-Claude Desktop/Code → mcp-squeeze → MCP server
-```
-
-It intercepts JSON-RPC responses and applies a pipeline of optimizations:
-
-1. **Null/empty stripping** — removes columns where all values are null/undefined/empty
-2. **Dot-notation flattening** — converts nested objects to flat keys (`profile.city`)
-3. **Structured text parsing** — detects repeating key-value patterns in plain text and converts to tabular format
-4. **Tabular conversion** — converts uniform arrays to PSV, Markdown table, or TOON format
-
-Example PSV output:
-```
-## PSV|id,name,email|3 rows
-1|Alice|alice@example.com
-2|Bob|bob@example.com
-3|Charlie|charlie@example.com
+MCP client → tokpack → MCP server              (proxy mode)
+stdin → tokpack → stdout                       (pipe mode)
+pack(data) → compressed string                 (library)
 ```
 
 **Decision flow:**
-- Payload < 512 bytes → pass-through
-- Array < 5 items → minified JSON
-- Pre-processing: strip all-null columns, flatten nested objects
-- Array ≥ 5 items with uniform keys → PSV (default), Markdown table, or TOON
-- Non-uniform data → fallback to minified JSON
+- Payload < 512 bytes → pass-through (MCP proxy only)
+- Array < 3 items → minified JSON
+- Pre-processing: strip all-null/empty columns, flatten nested objects (dot-notation, up to 3 levels)
+- Structured text: detect repeating Key: Value patterns → tabular format
+- Array >= 3 items with uniform keys → PSV (default), Markdown table, or TOON
+- Non-uniform or non-array data → minified JSON (if shorter) or original
 - Any error → original data returned unmodified
 
-## Environment Variables
+## Output Formats
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCP_SQUEEZE_DISABLED` | `0` | Set to `1` to bypass all optimization |
-| `MCP_SQUEEZE_VERBOSE` | `0` | Set to `1` to log optimization stats to stderr |
-| `MCP_SQUEEZE_FORMAT` | `psv` | Output format: `psv`, `md` (Markdown table), or `toon` (TOON) |
-| `MCP_SQUEEZE_NO_STRIP` | `0` | Set to `1` to disable null/empty column stripping |
-| `MCP_SQUEEZE_NO_FLATTEN` | `0` | Set to `1` to disable dot-notation flattening |
-| `MCP_SQUEEZE_NO_PARSE_TEXT` | `0` | Set to `1` to disable structured text parsing |
-| `MCP_SQUEEZE_UNWRAP` | `0` | Set to `1` to unwrap single-text content blocks (opt-in) |
+### PSV (default)
+
+```
+## PSV|name,role,email|3 rows
+Alice|admin|alice@example.com
+Bob|user|bob@example.com
+Charlie|editor|charlie@example.com
+```
+
+### Markdown Table
+
+```
+| name | role | email |
+|---|---|---|
+| Alice | admin | alice@example.com |
+| Bob | user | bob@example.com |
+| Charlie | editor | charlie@example.com |
+```
+
+### TOON
+
+```
+[3]{name,role,email}:
+  Alice,admin,alice@example.com
+  Bob,user,bob@example.com
+  Charlie,editor,charlie@example.com
+```
+
+Run `tokpack --formats` to see examples with real data.
+
+## CLI Reference
+
+```
+Usage:
+  cat data.jsonl | tokpack [options]              Pipe/filter mode
+  tokpack --mcp [options] -- <command> [args...]   MCP proxy mode
+```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--format <fmt>` | Output format: `psv` (default), `md`, `toon` |
+| `--verbose`, `-v` | Log per-call stats to stderr |
+| `--no-strip` | Disable null/empty column stripping |
+| `--no-flatten` | Disable dot-notation flattening |
+| `--no-parse-text` | Disable structured text parsing |
+| `--mcp` | MCP proxy mode (JSON-RPC protocol) |
+| `--unwrap` | Unwrap single-text content blocks (MCP only) |
+| `--disabled` | Full bypass — pass all data through unchanged |
+
+### Commands
+
+| Flag | Description |
+|------|-------------|
+| `--help`, `-h` | Show help |
+| `--version`, `-V` | Show version |
+| `--stats` | Show cumulative token savings |
+| `--stats --reset` | Reset stats history |
+| `--config` | Show current configuration |
+| `--formats` | Show example output in all formats |
+| `--bench <file>` | Benchmark a file (one JSON/text per line) |
+| `--test -- <cmd>` | Verify MCP server starts and responds |
+| `--wrap <cmd>` | Generate MCP client config snippet |
 
 ## Token Savings Stats
 
-mcp-squeeze tracks cumulative optimization stats across sessions:
+tokpack tracks cumulative optimization stats across sessions:
 
 ```bash
-npx mcp-squeeze --stats
-# mcp-squeeze stats:
+tokpack --stats
+# tokpack stats:
 #   Optimizations: 47
 #   Original: 375.0 KB → Optimized: 138.7 KB
 #   Saved: 236.3 KB (63%) ~59,075 tokens
 
-npx mcp-squeeze --stats --reset  # Clear stats
+tokpack --stats --reset
 ```
 
 ## Limitations
 
 - Only optimizes arrays of uniform objects (same keys across all rows)
 - Nested objects are flattened up to 3 levels deep; deeper values are stringified
-- Non-array data is minified but not converted to tabular format
-- Payloads under 512 bytes are not touched
-- Lines over 10MB are passed through without parsing
+- Non-array JSON is minified only if the result is shorter than the original
+- Payloads under 512 bytes are passed through in MCP proxy mode
+- Lines over 10M characters are passed through without parsing
+- Keys containing format-specific delimiters (`,` `|` for PSV; `,` `{` `}` `:` for TOON; `|` for Markdown) cause fallback to JSON
 
 ## License
 

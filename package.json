@@ -1,6 +1,6 @@
 {
   "name": "tokpack",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Pack more data into fewer tokens — JSON compression library for LLM context optimization",
   "type": "module",
   "main": "./dist/lib.cjs",
@@ -17,7 +17,11 @@
     "tokpack": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist/index.js",
+    "dist/lib.mjs",
+    "dist/lib.cjs",
+    "dist/lib.d.ts",
+    "dist/lib.d.ts.map"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -27,7 +31,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "bench": "npx tsx scripts/bench.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run build"
   },
   "engines": {
     "node": ">=18"

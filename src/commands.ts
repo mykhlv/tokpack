@@ -23,7 +23,7 @@ Options:
   --formats            Show example output in PSV, Markdown, and TOON
   --bench <file>       Benchmark a file (one JSON/text per line)
   --test               Verify child MCP server starts and responds
-  --wrap <command>      Generate Claude Desktop config snippet
+  --wrap <command>      Generate MCP client config snippet
 
   --format <fmt>       Output format: psv (default), md, toon
   --verbose, -v        Log per-call stats to stderr
@@ -162,7 +162,7 @@ export function runWrap(ownArgs: string[]): never {
     },
   };
 
-  process.stdout.write('Add to your Claude Desktop config (claude_desktop_config.json):\n\n');
+  process.stdout.write('Add to your MCP client config:\n\n');
   process.stdout.write(`"mcpServers": ${JSON.stringify(config, null, 2)}\n`);
   process.exit(0);
 }
