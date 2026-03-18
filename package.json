@@ -1,10 +1,20 @@
 {
-  "name": "mcp-squeeze",
+  "name": "tokpack",
   "version": "1.0.0",
-  "description": "MCP token optimizer — stdio shim that transforms verbose JSON into token-efficient formats, saving 45-72% on tokens",
+  "description": "Pack more data into fewer tokens — JSON compression library for LLM context optimization",
   "type": "module",
+  "main": "./dist/lib.cjs",
+  "module": "./dist/lib.mjs",
+  "types": "./dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.mjs",
+      "require": "./dist/lib.cjs"
+    }
+  },
   "bin": {
-    "mcp-squeeze": "./dist/index.js"
+    "tokpack": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -23,21 +33,26 @@
     "node": ">=18"
   },
   "keywords": [
+    "token-optimization",
+    "llm",
+    "ai",
+    "json-compression",
     "mcp",
     "claude",
     "anthropic",
-    "token-optimization",
-    "context-window"
+    "context-window",
+    "psv",
+    "token-packing"
   ],
-  "author": "mcp-squeeze contributors",
+  "author": "tokpack contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mykhlv/mcp-squeeze"
+    "url": "https://github.com/mykhlv/tokpack"
   },
   "bugs": {
-    "url": "https://github.com/mykhlv/mcp-squeeze/issues"
+    "url": "https://github.com/mykhlv/tokpack/issues"
   },
-  "homepage": "https://github.com/mykhlv/mcp-squeeze#readme",
+  "homepage": "https://github.com/mykhlv/tokpack#readme",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^10.0.1",

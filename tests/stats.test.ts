@@ -1,22 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
-import { mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 // Set stats path before importing stats module
-const testDir = join(tmpdir(), `mcp-squeeze-test-${process.pid}`);
+const testDir = join(tmpdir(), `tokpack-test-${process.pid}`);
 const testStatsFile = join(testDir, 'stats.log');
-process.env.MCP_SQUEEZE_STATS_PATH = testStatsFile;
+process.env.TOKPACK_STATS_PATH = testStatsFile;
 
 import { appendStat, readStats, resetStats, getStatsPath, formatStatsReport } from '../src/stats.js';
 
 beforeEach(() => {
   mkdirSync(testDir, { recursive: true });
-  try { rmSync(testStatsFile); } catch {}
+  try {
+    rmSync(testStatsFile);
+  } catch {}
 });
 
 afterEach(() => {
-  try { rmSync(testDir, { recursive: true }); } catch {}
+  try {
+    rmSync(testDir, { recursive: true });
+  } catch {}
 });
 
 describe('getStatsPath', () => {
@@ -68,7 +72,6 @@ describe('readStats', () => {
 
   it('skips corrupted lines', () => {
     appendStat(1000, 400);
-    const { appendFileSync } = require('node:fs');
     appendFileSync(testStatsFile, 'garbage\n');
     appendFileSync(testStatsFile, '123,abc,def\n');
     appendStat(2000, 800);

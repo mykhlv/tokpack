@@ -24,12 +24,13 @@ describe('threshold guards', () => {
 // --- 3.2 MIN_ITEMS guard ---
 
 describe('MIN_ITEMS guard', () => {
-  it('array with 4 items → minified JSON (not PSV)', () => {
-    const data = Array.from({ length: 4 }, (_, i) => ({
+  it('array with 2 items → minified JSON (not PSV)', () => {
+    const data = Array.from({ length: 2 }, (_, i) => ({
       id: i + 1,
-      name: `user_with_a_longer_name_${i}`,
-      email: `user_with_longer_email_${i}@example-domain.com`,
-      bio: `This is a longer biography text for testing purposes number ${i}`,
+      name: `user_with_a_very_long_name_for_padding_${i}`,
+      email: `user_with_a_very_long_email_address_${i}@example-domain.com`,
+      bio: `This is a much longer biography text for testing purposes to ensure we exceed the minimum character threshold number ${i}`,
+      description: `Additional description field to add more bytes to the payload for testing purposes ${i}`,
     }));
     const text = JSON.stringify(data, null, 2);
     expect(text.length).toBeGreaterThanOrEqual(512);
@@ -359,11 +360,12 @@ describe('PSV format', () => {
 
 describe('minification', () => {
   it('pretty-printed JSON → minified JSON for small arrays', () => {
-    const data = Array.from({ length: 3 }, (_, i) => ({
+    const data = Array.from({ length: 2 }, (_, i) => ({
       id: i + 1,
-      name: `user_with_a_longer_name_${i}`,
-      email: `user_with_longer_email_${i}@example-domain.com`,
-      bio: `This is a longer biography text for testing purposes number ${i}`,
+      name: `user_with_a_very_long_name_for_padding_${i}`,
+      email: `user_with_a_very_long_email_address_${i}@example-domain.com`,
+      bio: `This is a much longer biography text for testing purposes to ensure we exceed the minimum character threshold number ${i}`,
+      description: `Additional description field to add more bytes to the payload for testing purposes ${i}`,
     }));
     const text = JSON.stringify(data, null, 2);
     expect(text.length).toBeGreaterThanOrEqual(512);
@@ -985,8 +987,8 @@ describe('structured text parsing', () => {
     expect(out).toContain('Library_1');
   });
 
-  it('fewer than 5 sections → unchanged', () => {
-    const text = makeStructuredText(3);
+  it('fewer than 3 sections → unchanged', () => {
+    const text = makeStructuredText(2);
     const line = rpc(text);
     const result = sq.process(line);
     const parsed = JSON.parse(result);
@@ -1019,7 +1021,7 @@ describe('structured text parsing', () => {
     const sections = Array.from({ length: 6 }, (_, i) => [
       `- Name: item_with_a_longer_name_${i + 1}`,
       `- URL: https://example.com/very/long/path/to/resource/${i + 1}`,
-      `- Status: active`,
+      '- Status: active',
       `- Description: This is a longer description to exceed the byte threshold for item ${i + 1}`,
     ].join('\n'));
     const text = sections.join('\n----------\n');
@@ -1035,7 +1037,7 @@ describe('structured text parsing', () => {
       const lines = [
         `- Name: item_with_a_longer_name_for_testing_${i + 1}`,
         `- Score: ${i * 10}`,
-        `- Description: Padding text to make this section long enough to exceed the minimum byte threshold`,
+        '- Description: Padding text to make this section long enough to exceed the minimum byte threshold',
       ];
       if (i % 2 === 0) lines.push(`- Extra: bonus_${i}`);
       return lines.join('\n');
@@ -1104,8 +1106,8 @@ describe('blank-line separated Key: Value text', () => {
     expect(out).toContain('Library_1');
   });
 
-  it('fewer than 5 sections → unchanged', () => {
-    const text = makeKeyValueText(3);
+  it('fewer than 3 sections → unchanged', () => {
+    const text = makeKeyValueText(2);
     const line = rpc(text);
     const result = sq.process(line);
     const parsed = JSON.parse(result);
@@ -1159,9 +1161,9 @@ describe('density guard', () => {
   it('prose with occasional colons → not parsed as structured text', () => {
     const sections = Array.from({ length: 6 }, (_, i) => [
       `This is paragraph ${i + 1} about something interesting.`,
-      `It has some text with a colon: but it is not structured.`,
-      `More prose follows here without any key-value pattern.`,
-      `And even more text to make the section substantial enough.`,
+      'It has some text with a colon: but it is not structured.',
+      'More prose follows here without any key-value pattern.',
+      'And even more text to make the section substantial enough.',
       `Final line: concluding thoughts on topic ${i + 1}.`,
     ].join('\n'));
     const text = sections.join('\n\n');
@@ -1178,7 +1180,7 @@ describe('density guard', () => {
       `Name: Library_${i + 1}`,
       `Version: ${i + 1}.0.0`,
       `Description: A library for doing thing ${i + 1} with padding text`,
-      `License: MIT`,
+      'License: MIT',
     ].join('\n'));
     const text = sections.join('\n\n');
     const result = sq.process(rpc(text));
@@ -1206,10 +1208,10 @@ describe('text parsing edge cases', () => {
   it('density exactly 60% (3/5 lines) → passes', () => {
     const sections = Array.from({ length: 6 }, (_, i) => [
       `Heading for item ${i + 1}`,
-      `Subheading for context`,
+      'Subheading for context',
       `Name: Library_${i + 1}`,
       `Version: ${i + 1}.0.0`,
-      `License: MIT`,
+      'License: MIT',
     ].join('\n'));
     const text = sections.join('\n\n');
     const result = sq.process(rpc(text));
@@ -1221,8 +1223,8 @@ describe('text parsing edge cases', () => {
   it('density below 60% (2/5 lines) → not parsed', () => {
     const sections = Array.from({ length: 6 }, (_, i) => [
       `Heading for item ${i + 1}`,
-      `Some prose about the topic.`,
-      `More context and background.`,
+      'Some prose about the topic.',
+      'More context and background.',
       `Name: Library_${i + 1}`,
       `Version: ${i + 1}.0.0`,
     ].join('\n'));
@@ -1237,9 +1239,9 @@ describe('text parsing edge cases', () => {
   it('values with colons (timestamps) → key is first part only', () => {
     const sections = Array.from({ length: 6 }, (_, i) => [
       `- Name: item_${i + 1}`,
-      `- Time: 12:30:45`,
-      `- Status: active`,
-      `- Note: Important: do not remove this item from the list`,
+      '- Time: 12:30:45',
+      '- Status: active',
+      '- Note: Important: do not remove this item from the list',
     ].join('\n'));
     const text = sections.join('\n----------\n');
     const result = sq.process(rpc(text));
@@ -1289,7 +1291,7 @@ describe('text parsing edge cases', () => {
       `**Name** Library_${i + 1}`,
       `**Version** ${i + 1}.0.0`,
       `**Description** A library for doing thing ${i + 1} with padding`,
-      `**License** MIT`,
+      '**License** MIT',
     ].join('\n'));
     const text = sections.join('\n\n');
     const line = rpc(text);

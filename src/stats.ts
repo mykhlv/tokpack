@@ -4,14 +4,14 @@ import { appendFileSync, readFileSync, unlinkSync, mkdirSync } from 'node:fs';
 
 export const BYTES_PER_TOKEN = 4;
 
-const DEFAULT_STATS_PATH = join(homedir(), '.mcp-squeeze', 'stats.log');
+const DEFAULT_STATS_PATH = join(homedir(), '.tokpack', 'stats.log');
 
 let cachedStatsPath: string | undefined;
 let dirEnsured = false;
 
 export function getStatsPath(): string {
   if (!cachedStatsPath) {
-    cachedStatsPath = process.env.MCP_SQUEEZE_STATS_PATH || DEFAULT_STATS_PATH;
+    cachedStatsPath = process.env.TOKPACK_STATS_PATH || DEFAULT_STATS_PATH;
   }
   return cachedStatsPath;
 }
@@ -39,9 +39,9 @@ export function appendStat(originalBytes: number, optimizedBytes: number): void 
 }
 
 export interface StatsAggregate {
-  optimizations: number;
-  originalBytes: number;
-  optimizedBytes: number;
+  optimizations: number
+  originalBytes: number
+  optimizedBytes: number
 }
 
 export function readStats(): StatsAggregate {
@@ -72,6 +72,7 @@ export function readStats(): StatsAggregate {
 export function resetStats(): boolean {
   try {
     unlinkSync(getStatsPath());
+    cachedStatsPath = undefined;
     dirEnsured = false;
     return true;
   } catch {
@@ -87,7 +88,7 @@ function formatBytes(bytes: number): string {
 
 export function formatStatsReport(): string {
   const stats = readStats();
-  if (stats.optimizations === 0) {
+  if (stats.optimizations === 0 || stats.originalBytes === 0) {
     return 'No stats recorded yet.\n';
   }
 
@@ -95,7 +96,7 @@ export function formatStatsReport(): string {
   const ratio = Math.round((1 - stats.optimizedBytes / stats.originalBytes) * 100);
   const tokens = Math.round(saved / BYTES_PER_TOKEN);
 
-  return `mcp-squeeze stats:\n`
+  return 'tokpack stats:\n'
     + `  Optimizations: ${stats.optimizations}\n`
     + `  Original: ${formatBytes(stats.originalBytes)} → Optimized: ${formatBytes(stats.optimizedBytes)}\n`
     + `  Saved: ${formatBytes(saved)} (${ratio}%) ~${tokens.toLocaleString('en-US')} tokens\n`;

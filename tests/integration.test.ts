@@ -95,18 +95,18 @@ describe('stderr pass-through', () => {
 
 describe('ENOENT handling', () => {
   it('non-existent command → exit 127 + error', async () => {
-    const { done } = sh({}, 'nonexistent-command-xyz');
+    const { done } = sh([], 'nonexistent-command-xyz');
     const { code, stderr } = await done;
     expect(code).toBe(127);
-    expect(stderr).toContain('[mcp-squeeze]');
+    expect(stderr).toContain('[tokpack]');
   });
 });
 
 // --- 5.8 Bypass mode ---
 
 describe('bypass mode', () => {
-  it('MCP_SQUEEZE_DISABLED=1 → data unmodified', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_DISABLED: '1' });
+  it('--disabled → data unmodified', async () => {
+    const { proc, done } = sh(['--disabled']);
     send(proc, { cmd: 'big', id: 4 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stdout } = await done;
@@ -136,23 +136,23 @@ describe('CRLF line endings', () => {
 
 describe('MAX_LINE_LENGTH bypass', () => {
   it('line >10MB passes through without optimization', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_VERBOSE: '1' });
+    const { proc, done } = sh(['--verbose']);
     send(proc, { cmd: 'huge', id: 6 });
     // Allow time for the 11MB write to flush through pipes
     await new Promise(r => setTimeout(r, 1000));
     send(proc, { cmd: 'exit', code: 0 });
     const { stderr, code } = await done;
     // Verbose mode should log the skip
-    expect(stderr).toContain('[mcp-squeeze] skip');
+    expect(stderr).toContain('[tokpack] skip');
     expect(code).toBe(0);
   }, 30000);
 });
 
 // --- 5.11 Format selection ---
 
-describe('format selection via env var', () => {
-  it('MCP_SQUEEZE_FORMAT=md → markdown table output', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_FORMAT: 'md' });
+describe('format selection via --format flag', () => {
+  it('--format md → markdown table output', async () => {
+    const { proc, done } = sh(['--format', 'md']);
     send(proc, { cmd: 'big', id: 1 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stdout } = await done;
@@ -162,8 +162,8 @@ describe('format selection via env var', () => {
     expect(text).not.toContain('## PSV');
   });
 
-  it('MCP_SQUEEZE_FORMAT=toon → TOON output', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_FORMAT: 'toon' });
+  it('--format toon → TOON output', async () => {
+    const { proc, done } = sh(['--format', 'toon']);
     send(proc, { cmd: 'big', id: 1 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stdout } = await done;
@@ -177,12 +177,12 @@ describe('format selection via env var', () => {
 // --- 5.12 Verbose mode ---
 
 describe('verbose mode', () => {
-  it('optimization stats on stderr with [mcp-squeeze] prefix', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_VERBOSE: '1' });
+  it('optimization stats on stderr with [tokpack] prefix', async () => {
+    const { proc, done } = sh(['--verbose']);
     send(proc, { cmd: 'big', id: 7 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stderr } = await done;
-    expect(stderr).toContain('[mcp-squeeze]');
+    expect(stderr).toContain('[tokpack]');
     expect(stderr).toContain('OPT');
     expect(stderr).toContain('tokens saved');
     // Verify format includes sizes and ratio: "1234B -> 567B (-55%)"

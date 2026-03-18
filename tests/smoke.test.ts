@@ -48,12 +48,13 @@ describe('squeezer smoke', () => {
     expect(sq.process(garbage)).toBe(garbage);
   });
 
-  it('small array (≤5 items) → minified JSON, not PSV', () => {
-    const data = Array.from({ length: 4 }, (_, i) => ({
+  it('small array (< 3 items) → minified JSON, not PSV', () => {
+    const data = Array.from({ length: 2 }, (_, i) => ({
       id: i + 1,
-      name: `user_with_long_name_${i}`,
-      email: `user_with_long_email_${i}@example-domain.com`,
-      bio: `A longer biography text for padding purposes number ${i}`,
+      name: `user_with_a_very_long_name_for_padding_${i}`,
+      email: `user_with_a_very_long_email_address_${i}@example-domain.com`,
+      bio: `A much longer biography text that is used for padding purposes to ensure we exceed the minimum character threshold number ${i}`,
+      description: `Additional description field to add more bytes to the payload for testing purposes ${i}`,
     }));
     const text = JSON.stringify(data, null, 2);
     expect(text.length).toBeGreaterThanOrEqual(512);
@@ -91,28 +92,23 @@ describe('CLI smoke', () => {
     const out = execFileSync('node', [SHIM, '--version'], {
       encoding: 'utf8',
     });
-    expect(out).toMatch(/^mcp-squeeze v\d+\.\d+\.\d+/);
+    expect(out).toMatch(/^tokpack v\d+\.\d+\.\d+/);
   });
 
   it('-V prints version and exits 0', () => {
     const out = execFileSync('node', [SHIM, '-V'], { encoding: 'utf8' });
-    expect(out).toMatch(/^mcp-squeeze v\d+\.\d+\.\d+/);
+    expect(out).toMatch(/^tokpack v\d+\.\d+\.\d+/);
   });
 
-  it('no arguments → usage message + exit 2', () => {
-    try {
-      execFileSync('node', [SHIM], { encoding: 'utf8', stdio: 'pipe' });
-      expect.unreachable('should have exited with code 2');
-    } catch (err: unknown) {
-      const e = err as { status: number, stderr: string };
-      expect(e.status).toBe(2);
-      expect(e.stderr).toContain('Usage:');
-    }
+  it('no arguments + piped stdin → pipe mode (exit 0)', () => {
+    // When stdin is a pipe (not TTY), tokpack enters pipe/filter mode
+    const out = execFileSync('node', [SHIM], { encoding: 'utf8', input: '' });
+    expect(out).toBe('');
   });
 
   it('-- without command → usage message + exit 2', () => {
     try {
-      execFileSync('node', [SHIM, '--'], { encoding: 'utf8', stdio: 'pipe' });
+      execFileSync('node', [SHIM, '--'], { encoding: 'utf8', input: '' });
       expect.unreachable('should have exited with code 2');
     } catch (err: unknown) {
       const e = err as { status: number, stderr: string };
@@ -147,14 +143,14 @@ describe('CLI smoke', () => {
   });
 
   it('nonexistent command → exit 127', async () => {
-    const { done } = sh({}, 'nonexistent-cmd-xyz');
+    const { done } = sh([], 'nonexistent-cmd-xyz');
     const { code, stderr } = await done;
     expect(code).toBe(127);
-    expect(stderr).toContain('[mcp-squeeze]');
+    expect(stderr).toContain('[tokpack]');
   });
 
-  it('MCP_SQUEEZE_DISABLED=1 → bypass optimization', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_DISABLED: '1' });
+  it('--disabled → bypass optimization', async () => {
+    const { proc, done } = sh(['--disabled']);
     send(proc, { cmd: 'big', id: 1 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stdout } = await done;
@@ -164,12 +160,12 @@ describe('CLI smoke', () => {
     expect(text).toContain('"id": 1');
   });
 
-  it('MCP_SQUEEZE_VERBOSE=1 → stats on stderr', async () => {
-    const { proc, done } = sh({ MCP_SQUEEZE_VERBOSE: '1' });
+  it('--verbose → stats on stderr', async () => {
+    const { proc, done } = sh(['--verbose']);
     send(proc, { cmd: 'big', id: 1 });
     send(proc, { cmd: 'exit', code: 0 });
     const { stderr } = await done;
-    expect(stderr).toContain('[mcp-squeeze]');
+    expect(stderr).toContain('[tokpack]');
     expect(stderr).toContain('OPT');
   });
 });

@@ -1,188 +1,128 @@
 import { spawn } from 'node:child_process';
-import { StringDecoder } from 'node:string_decoder';
-import { Squeezer, Format } from './squeezer.js';
-import { appendStat, printStats, resetStats } from './stats.js';
+import { parseArgs } from './cli.js';
+import { runHelp, runVersion, runStats, runConfig, runFormats, runBench, runWrap, runTest } from './commands.js';
+import { createMcpLineProcessor, createPipeLineProcessor, processStream } from './stream.js';
 
-declare const VERSION: string;
+// --- Parse CLI arguments ---
 
-const MAX_LINE_LENGTH = 10 * 1024 * 1024; // 10MB
+const parsed = parseArgs(process.argv);
+const { hasFlag, flagValue, opts, isMcpMode, hasChildCommand, isPipe, childArgs } = parsed;
 
-// --- 4.1 Parse CLI arguments ---
+// --- Standalone commands (exit immediately) ---
 
-const args = process.argv.slice(2);
-const sepIndex = args.indexOf('--');
-const ownArgs = sepIndex === -1 ? args : args.slice(0, sepIndex);
-
-if (ownArgs.includes('--version') || ownArgs.includes('-V')) {
-  process.stdout.write(`mcp-squeeze v${VERSION}\n`);
-  process.exit(0);
+if (hasFlag('--help', '-h')) runHelp();
+if (hasFlag('--version', '-V')) runVersion();
+if (hasFlag('--stats')) runStats(hasFlag('--reset'));
+if (hasFlag('--config')) runConfig(parsed);
+if (hasFlag('--formats')) runFormats();
+if (hasFlag('--bench')) runBench(flagValue('--bench'));
+if (hasFlag('--wrap')) runWrap(parsed.ownArgs);
+if (hasFlag('--test')) {
+  runTest(process.argv.slice(2), parsed.sepIndex);
 }
 
-if (ownArgs.includes('--stats')) {
-  if (ownArgs.includes('--reset')) {
-    const deleted = resetStats();
-    process.stdout.write(deleted ? 'Stats reset.\n' : 'No stats to reset.\n');
-  } else {
-    printStats();
-  }
-  process.exit(0);
-}
+// --- Determine mode ---
 
-if (sepIndex === -1 || sepIndex + 1 >= args.length) {
+if (!hasChildCommand && !isPipe && !hasFlag('--test')) {
   process.stderr.write(
-    'Usage: mcp-squeeze [--version] -- <command> [args...]\n',
+    'Usage: cat data.jsonl | tokpack [options]\n'
+    + '       tokpack --mcp [options] -- <command> [args...]\n'
+    + 'Run tokpack --help for details.\n',
   );
   process.exit(2);
 }
 
-const childArgs = args.slice(sepIndex + 1);
-const command = childArgs[0];
-const commandArgs = childArgs.slice(1);
+// --- Pipe mode: stdin → pack → stdout ---
 
-const disabled = process.env.MCP_SQUEEZE_DISABLED === '1';
-const verbose = process.env.MCP_SQUEEZE_VERBOSE === '1';
-const rawFormat = process.env.MCP_SQUEEZE_FORMAT;
-const format: Format = rawFormat === 'md' ? 'md' : rawFormat === 'toon' ? 'toon' : 'psv';
-const stripEmpty = process.env.MCP_SQUEEZE_NO_STRIP !== '1';
-const flatten = process.env.MCP_SQUEEZE_NO_FLATTEN !== '1';
-const parseText = process.env.MCP_SQUEEZE_NO_PARSE_TEXT !== '1';
-const unwrapContent = process.env.MCP_SQUEEZE_UNWRAP === '1';
-
-// --- 4.2 Spawn child process ---
-
-const child = spawn(command, commandArgs, {
-  stdio: ['pipe', 'pipe', 'inherit'],
-  shell: false,
-});
-
-process.stdin.pipe(child.stdin);
-child.stdin.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code !== 'EPIPE') {
-    process.stderr.write(`[mcp-squeeze] child stdin error: ${err.message}\n`);
-  }
-});
-
-// --- 4.3 Stdout interception ---
-
-let stdoutEnded = false;
-let childExited = false;
-let exitCode: number | null = null;
-let exitSignal: NodeJS.Signals | null = null;
-
-if (disabled) {
-  child.stdout.pipe(process.stdout);
-  child.stdout.on('end', () => {
-    stdoutEnded = true;
-    maybeExit();
-  });
-} else {
-  const squeezer = new Squeezer({ verbose, format, stripEmpty, flatten, parseText, unwrapContent });
-  const decoder = new StringDecoder('utf8');
-  let buffer = '';
-
-  const emitLine = (raw: string): void => {
-    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
-    if (line.length > MAX_LINE_LENGTH) {
-      if (verbose) {
-        process.stderr.write(
-          `[mcp-squeeze] skip: line exceeds ${MAX_LINE_LENGTH} bytes\n`,
-        );
-      }
-      process.stdout.write(line + '\n');
-    } else {
-      const result = squeezer.process(line);
-      if (result !== line) {
-        appendStat(Buffer.byteLength(line), Buffer.byteLength(result));
-      }
-      process.stdout.write(result + '\n');
-    }
-  };
-
-  child.stdout.on('data', (chunk: Buffer) => {
-    buffer += decoder.write(chunk);
-
-    // Guard against unbounded buffer growth from data without newlines
-    if (!buffer.includes('\n') && buffer.length > MAX_LINE_LENGTH) {
-      emitLine(buffer);
-      buffer = '';
-      return;
-    }
-
-    const lines = buffer.split('\n');
-    buffer = lines.pop()!;
-
-    for (const raw of lines) {
-      emitLine(raw);
-    }
-  });
-
-  child.stdout.on('end', () => {
-    buffer += decoder.end();
-    if (buffer.length > 0) {
-      emitLine(buffer);
-    }
-    stdoutEnded = true;
-    maybeExit();
-  });
-}
-
-// --- 4.4 Graceful shutdown ---
-
-function maybeExit(): void {
-  if (!stdoutEnded || !childExited) return;
-  if (exitSignal) {
-    process.kill(process.pid, exitSignal);
-  } else {
-    process.exit(exitCode ?? 0);
-  }
-}
-
-child.on('exit', (code, signal) => {
-  exitCode = code;
-  exitSignal = signal;
-  childExited = true;
-  maybeExit();
-});
-
-// --- 4.5 Signal propagation ---
-
-for (const sig of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(sig, () => {
-    child.kill(sig);
-  });
-}
-
-// --- 4.6 Error handling ---
-
-child.on('error', (err: NodeJS.ErrnoException) => {
-  process.stderr.write(`[mcp-squeeze] ${err.message}\n`);
-  if (err.code === 'ENOENT') {
-    process.exit(127);
-  } else if (err.code === 'EACCES') {
-    process.exit(126);
-  } else {
-    process.exit(1);
-  }
-});
-
-// --- 4.7 EPIPE handling ---
-
-process.stdout.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EPIPE') {
-    if (child.pid && !child.killed) child.kill('SIGTERM');
+if (isPipe) {
+  const processor = isMcpMode ? createMcpLineProcessor(opts) : createPipeLineProcessor(opts);
+  processStream(process.stdin, processor, opts, () => {
     process.exit(0);
-  } else {
-    process.stderr.write(`[mcp-squeeze] stdout error: ${err.message}\n`);
+  });
+
+  process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE') process.exit(0);
+    process.stderr.write(`[tokpack] stdout error: ${err.message}\n`);
     process.exit(1);
-  }
-});
+  });
+}
 
-// --- 4.8 Uncaught exception handler ---
+// --- MCP Proxy mode: spawn child, intercept stdout ---
 
-process.on('uncaughtException', (err) => {
-  process.stderr.write(`[mcp-squeeze] uncaught: ${err.message}\n`);
-  if (child && child.pid && !child.killed) {
-    child.kill('SIGTERM');
+if (hasChildCommand) {
+  const command = childArgs[0];
+  const commandArgs = childArgs.slice(1);
+
+  const child = spawn(command, commandArgs, {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    shell: false,
+  });
+
+  process.stdin.pipe(child.stdin);
+  child.stdin.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code !== 'EPIPE') {
+      process.stderr.write(`[tokpack] child stdin error: ${err.message}\n`);
+    }
+  });
+
+  let stdoutEnded = false;
+  let childExited = false;
+  let exitCode: number | null = null;
+  let exitSignal: NodeJS.Signals | null = null;
+
+  function maybeExit(): void {
+    if (!stdoutEnded || !childExited) return;
+    if (exitSignal) {
+      process.kill(process.pid, exitSignal);
+    } else {
+      process.exit(exitCode ?? 0);
+    }
   }
-  process.exit(1);
-});
+
+  processStream(child.stdout, createMcpLineProcessor(opts), opts, () => {
+    stdoutEnded = true;
+    maybeExit();
+  });
+
+  child.on('exit', (code, signal) => {
+    exitCode = code;
+    exitSignal = signal;
+    childExited = true;
+    maybeExit();
+  });
+
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(sig, () => {
+      child.kill(sig);
+    });
+  }
+
+  child.on('error', (err: NodeJS.ErrnoException) => {
+    process.stderr.write(`[tokpack] ${err.message}\n`);
+    if (err.code === 'ENOENT') {
+      process.exit(127);
+    } else if (err.code === 'EACCES') {
+      process.exit(126);
+    } else {
+      process.exit(1);
+    }
+  });
+
+  process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE') {
+      if (child.pid && !child.killed) child.kill('SIGTERM');
+      process.exit(0);
+    } else {
+      process.stderr.write(`[tokpack] stdout error: ${err.message}\n`);
+      process.exit(1);
+    }
+  });
+
+  process.on('uncaughtException', (err) => {
+    process.stderr.write(`[tokpack] uncaught: ${err.message}\n`);
+    if (child && child.pid && !child.killed) {
+      child.kill('SIGTERM');
+    }
+    process.exit(1);
+  });
+}

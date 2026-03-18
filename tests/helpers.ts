@@ -57,7 +57,7 @@ export function makeKeyValueText(n: number): string {
     `Version: ${i + 1}.0.0`,
     `Description: A library for doing thing ${i + 1} with code and more padding`,
     `Downloads: ${(i + 1) * 1000}`,
-    `License: MIT`,
+    'License: MIT',
   ].join('\n')).join('\n\n');
 }
 
@@ -68,7 +68,7 @@ export function makeBoldKeyValueText(n: number): string {
     `**Version**: ${i + 1}.0.0`,
     `**Description**: A library for doing thing ${i + 1} with code and padding`,
     `**Downloads**: ${(i + 1) * 1000}`,
-    `**License**: MIT`,
+    '**License**: MIT',
   ].join('\n')).join('\n\n');
 }
 
@@ -80,18 +80,19 @@ export function makeHeaderSeparatedText(n: number): string {
     `Version: ${i + 1}.0.0`,
     `Description: A library for doing thing ${i + 1} with code and more padding`,
     `Downloads: ${(i + 1) * 1000}`,
-    `License: MIT`,
+    'License: MIT',
   ].join('\n')).join('\n');
 }
 
-/** Spawn the shim with a child command, collect stdout/stderr */
+/** Spawn the shim with a child command, collect stdout/stderr.
+ *  Always adds --mcp flag for proxy mode (child command). */
 export function runShim(
-  env: Record<string, string> = {},
+  shimFlags: string[] = [],
   childCmd = 'node',
   childArgs = [MOCK],
 ): { proc: ChildProcess, done: Promise<ShimResult> } {
-  const proc = spawn('node', [SHIM, '--', childCmd, ...childArgs], {
-    env: { ...process.env, ...env },
+  const proc = spawn('node', [SHIM, '--mcp', ...shimFlags, '--', childCmd, ...childArgs], {
+    env: process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
@@ -131,11 +132,11 @@ export function killAll(procs: ChildProcess[]): void {
 /** Spawn shim, track process for cleanup, return result promise */
 export function trackedRunShim(
   procs: ChildProcess[],
-  env: Record<string, string> = {},
+  shimFlags: string[] = [],
   childCmd = 'node',
   childArgs = [MOCK],
 ): { proc: ChildProcess, done: Promise<ShimResult> } {
-  const result = runShim(env, childCmd, childArgs);
+  const result = runShim(shimFlags, childCmd, childArgs);
   procs.push(result.proc);
   return result;
 }
