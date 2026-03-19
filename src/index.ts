@@ -55,6 +55,11 @@ if (!hasFlag('--test') && hasChildCommand) {
     shell: false,
   });
 
+  process.stdin.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+      process.stderr.write(`[tokpack] stdin error: ${err.message}\n`);
+    }
+  });
   process.stdin.pipe(child.stdin);
   child.stdin.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code !== 'EPIPE') {

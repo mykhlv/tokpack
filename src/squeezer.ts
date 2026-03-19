@@ -26,7 +26,8 @@ function encodeSpecialChars(
   str: string,
   newlineReplacement: (ch: string) => string,
 ): string {
-  return str.replace(/[\\|\r\n]/g, (ch) => {
+  // Normalize \r\n to \n first so it produces a single replacement, not two
+  return str.replace(/\r\n/g, '\n').replace(/[\\|\r\n]/g, (ch) => {
     if (ch === '\\') return '\\\\';
     if (ch === '|') return '\\|';
     return newlineReplacement(ch);
@@ -98,11 +99,13 @@ export class Squeezer {
    */
   packData(data: unknown): string {
     try {
+      // ?? fallback handles undefined/Symbol/function inputs where JSON.stringify returns undefined
       if (!isPackableArray(data)) return JSON.stringify(data) ?? String(data);
       const json = JSON.stringify(data);
       return this.formatRecords(data, null, json.length, json, true);
     } catch {
       try {
+        // ?? fallback: JSON.stringify returns undefined for non-serializable inputs
         return JSON.stringify(data) ?? String(data);
       } catch {
         return String(data);

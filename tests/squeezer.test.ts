@@ -1091,6 +1091,24 @@ describe('structured text parsing', () => {
   });
 });
 
+describe('parseText: false via packText()', () => {
+  it('structured text with parseText: false is NOT converted to tabular format', () => {
+    const noParseText = new Squeezer({ parseText: false });
+    const text = makeStructuredText(6);
+    const result = noParseText.packText(text);
+    expect(result).not.toContain('## PSV');
+    expect(result).not.toContain('|---|');
+    expect(result).toBe(text);
+  });
+
+  it('structured text with parseText: true (default) IS converted', () => {
+    const withParseText = new Squeezer({ parseText: true });
+    const text = makeStructuredText(6);
+    const result = withParseText.packText(text);
+    expect(result).toContain('## PSV');
+  });
+});
+
 // --- 7.2 Universal text parsing (combinatorial separators × patterns) ---
 
 describe('blank-line separated Key: Value text', () => {

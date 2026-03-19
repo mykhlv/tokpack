@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `--format` without a value no longer eats the next flag (e.g., `--format --verbose` now correctly treats `--verbose` as a flag)
+- `process.stdin.pipe(child.stdin)` in MCP proxy mode now has an error handler on stdin to prevent uncaught stream errors
+- `\r\n` in markdown table values now produces a single space instead of two
+
+### Changed
+
+- `prepublishOnly` script now includes `npm test` after build
+- CLAUDE.md updated: eight source files (was five), engine constraint corrected to >=20
+
+### Added
+
+- Unit tests for `parseArgs` in `cli.ts` (flags, format resolution, `--` separator, MCP mode)
+- Unit tests for `createPipeLineProcessor` and `createMcpLineProcessor` in `stream.ts`
+- Unit test for `parseText: false` via `packText()` in squeezer
+- E2e tests for `--bench` and `--wrap` CLI commands
+- Inline comments on `JSON.stringify(data) ?? String(data)` fallback in squeezer
+
 ## 0.1.1 - 2026-03-18
 
 ### Changed

@@ -32,7 +32,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
   function flagValue(flag: string): string | undefined {
     const idx = ownArgs.indexOf(flag);
     if (idx === -1) return undefined;
-    return ownArgs[idx + 1];
+    const next = ownArgs[idx + 1];
+    if (next === undefined || next.startsWith('-')) return undefined;
+    return next;
   }
 
   function hasFlag(...flags: string[]): boolean {
