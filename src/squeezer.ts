@@ -6,6 +6,32 @@ const MAX_FLATTEN_DEPTH = 3;
 
 type Row = Record<string, unknown>;
 
+/** TOON §2: canonical number — no exponents, no trailing fractional zeros, integer when possible */
+function toonCanonicalNumber(val: number): string {
+  const str = String(val);
+  if (!str.includes('e') && !str.includes('E')) return str;
+
+  // Expand exponent notation via string manipulation to avoid floating-point precision loss
+  const match = str.match(/^(-?)(\d+)(?:\.(\d+))?e([+-]?\d+)$/i);
+  if (!match) return str;
+
+  const [, sign, int, frac = '', expStr] = match;
+  const exp = parseInt(expStr);
+  const digits = int + frac;
+
+  if (exp >= 0) {
+    const zeros = exp - frac.length;
+    if (zeros >= 0) return sign + digits + '0'.repeat(zeros);
+    const dot = int.length + exp;
+    return sign + digits.slice(0, dot) + '.' + digits.slice(dot);
+  }
+
+  const zeros = Math.abs(exp) - int.length;
+  if (zeros >= 0) return sign + '0.' + '0'.repeat(zeros) + digits;
+  const dot = int.length + exp;
+  return sign + digits.slice(0, dot) + '.' + digits.slice(dot);
+}
+
 function isPlainObject(val: unknown): val is Row {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
@@ -392,7 +418,8 @@ export class Squeezer {
     if (keys.length === 0) return null;
     if (this.format === 'psv' && keys.some(k => /[,|]/.test(k))) return null;
     if (this.format === 'md' && keys.some(k => k.includes('|'))) return null;
-    if (this.format === 'toon' && keys.some(k => /[,{}:]/.test(k))) return null;
+    // TOON §7.3: unquoted keys must match ^[A-Za-z_][A-Za-z0-9_.]*$
+    if (this.format === 'toon' && keys.some(k => !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(k))) return null;
 
     const keyCount = keys.length;
     for (const rec of data) {
@@ -458,21 +485,34 @@ export class Squeezer {
   // Pipe (`|`) is intentionally NOT quoted here — it is not a delimiter in
   // TOON (comma-separated), so it can appear in values as a literal character
   // without causing ambiguity.
+  // TOON number regex (§7.2): values matching this pattern MUST be quoted when
+  // they appear as strings, to avoid ambiguity with actual numbers.
+  private static readonly TOON_NUMBER_RE = /^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i;
+  private static readonly TOON_LEADING_ZERO_RE = /^0\d+$/;
+
   private static toonEncodeValue(val: unknown): string {
     if (val === null || val === undefined) return 'null';
     if (typeof val === 'boolean') return val ? 'true' : 'false';
-    if (typeof val === 'number') return String(val);
+    if (typeof val === 'number') {
+      // §2: NaN, Infinity → null; -0 → 0
+      if (!Number.isFinite(val)) return 'null';
+      if (Object.is(val, -0)) return '0';
+      // §2: canonical form — no exponents, no trailing fractional zeros
+      return toonCanonicalNumber(val);
+    }
 
     const str = String(val);
     if (str === '') return '""';
 
-    // Quote if value could be ambiguous or contains special chars
+    // §7.2: string MUST be quoted if any condition is true
     const needsQuote = str === 'true'
       || str === 'false'
       || str === 'null'
-      || /^-?\d/.test(str)
-      || /[,:"\\[\]{}\r\n\t]/.test(str)
-      || str !== str.trim();
+      || str[0] === '-' // equals "-" or starts with "-"
+      || Squeezer.TOON_NUMBER_RE.test(str) // looks like a number
+      || Squeezer.TOON_LEADING_ZERO_RE.test(str) // leading-zero decimal ("05")
+      || /[,:"\\[\]{}\r\n\t]/.test(str) // delimiters, structural, control
+      || str !== str.trim(); // leading/trailing whitespace
 
     if (!needsQuote) return str;
 

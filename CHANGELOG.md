@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TOON: `Infinity`/`NaN` now encode as `null`, `-0` as `0` per spec §2
+- TOON: numbers with exponent notation now expand to canonical decimal form per spec §2 (e.g. `1e6` → `1000000`)
+- TOON: string quoting now follows spec §7.2 — numeric-looking strings, leading-zero decimals, and strings starting with `-` are correctly quoted
+- TOON: keys not matching `^[A-Za-z_][A-Za-z0-9_.]*$` now fall back to JSON per spec §7.3
 - `--format` without a value no longer eats the next flag (e.g., `--format --verbose` now correctly treats `--verbose` as a flag)
 - `process.stdin.pipe(child.stdin)` in MCP proxy mode now has an error handler on stdin to prevent uncaught stream errors
 - `\r\n` in markdown table values now produces a single space instead of two

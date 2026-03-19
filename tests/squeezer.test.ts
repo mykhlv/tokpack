@@ -831,10 +831,10 @@ describe('TOON format', () => {
     expect(lines[2]).toBe('  2,false,10,user_1');
   });
 
-  it('string that looks like number → quoted', () => {
+  it('string that looks like number → quoted (§7.2)', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
-      code: `${i + 100}abc`,
+      code: `${(i + 1) * 100}`,
       name: `user_${i}`,
       note: 'padding text to exceed the byte threshold easily',
     }));
@@ -843,8 +843,8 @@ describe('TOON format', () => {
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
     const lines = out.split('\n');
-    // "100abc" starts with digit → must be quoted
-    expect(lines[1]).toContain('"100abc"');
+    // "100" matches numeric pattern → must be quoted
+    expect(lines[1]).toContain('"100"');
   });
 
   it('string "true"/"false"/"null" → quoted to avoid ambiguity', () => {
@@ -970,6 +970,89 @@ describe('TOON format', () => {
         10,user_10,user10@example.com,true"
     `);
   });
+
+  // --- TOON spec compliance (https://github.com/toon-format/spec) ---
+
+  it('§2: Infinity/NaN → null, -0 → 0 (via packData)', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: [Infinity, -Infinity, NaN, -0, 0, 42][i],
+      label: `item_${i}`,
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const out = toonSq.packData(data);
+    const lines = out.split('\n');
+    expect(lines[1]).toBe('  1,null,item_0,padding to exceed threshold value for toon'); // Infinity → null
+    expect(lines[2]).toBe('  2,null,item_1,padding to exceed threshold value for toon'); // -Infinity → null
+    expect(lines[3]).toBe('  3,null,item_2,padding to exceed threshold value for toon'); // NaN → null
+    expect(lines[4]).toBe('  4,0,item_3,padding to exceed threshold value for toon'); // -0 → 0
+  });
+
+  it('§2: canonical numbers — no exponent notation (via packData)', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: [1e6, 1e-6, -3.14, 1.5, 100, 0.1][i],
+      label: `item_${i}`,
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const out = toonSq.packData(data);
+    const lines = out.split('\n');
+    expect(lines[1]).toContain(',1000000,'); // 1e6 → 1000000
+    expect(lines[2]).toContain(',0.000001,'); // 1e-6 → 0.000001
+    expect(lines[3]).toContain(',-3.14,');
+    expect(lines[4]).toContain(',1.5,');
+  });
+
+  it('§7.2: strings starting with "-" → quoted', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: ['-', '-foo', '--bar', 'normal', '-123abc', 'ok'][i],
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"-"');
+    expect(lines[2]).toContain('"-foo"');
+    expect(lines[3]).toContain('"--bar"');
+    expect(lines[4]).not.toContain('"normal"');
+    expect(lines[5]).toContain('"-123abc"');
+  });
+
+  it('§7.2: numeric-looking strings → quoted, non-numeric → unquoted', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: ['42', '3.14', '1e6', '05', '+42', '.5'][i],
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    const lines = out.split('\n');
+    expect(lines[1]).toContain('"42"'); // matches number pattern → quoted
+    expect(lines[2]).toContain('"3.14"'); // matches number pattern → quoted
+    expect(lines[3]).toContain('"1e6"'); // matches number pattern → quoted
+    expect(lines[4]).toContain('"05"'); // leading-zero → quoted
+    expect(lines[5]).toContain(',+42,'); // +42 doesn't match → unquoted
+    expect(lines[6]).toContain(',.5,'); // .5 doesn't match → unquoted
+  });
+
+  it('§7.3: keys not matching unquoted-key pattern → fallback to JSON', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      'valid_key': i + 1,
+      'key with space': `val_${i}`,
+      'note': 'padding to exceed threshold value for toon',
+    }));
+    const text = JSON.stringify(data, null, 2);
+    const result = toonSq.process(rpc(text));
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    // Should NOT be TOON since key contains space — falls back to JSON
+    expect(out).not.toMatch(/^\[.*\]\{/);
+  });
 });
 
 // --- 7.1 Structured text parsing ---
@@ -1005,13 +1088,14 @@ describe('structured text parsing', () => {
     expect(out).toContain('Library_1');
   });
 
-  it('structured text with TOON format', () => {
+  it('structured text with TOON format falls back when keys have spaces', () => {
     const toonSq = new Squeezer({ format: 'toon' });
     const text = makeStructuredText(6);
     const result = toonSq.process(rpc(text));
     const parsed = JSON.parse(result);
     const out = parsed.result.content[0].text;
-    expect(out).toContain('{Title,ID,Description,Code Snippets,Score}:');
+    // "Code Snippets" key has a space → invalid unquoted TOON key (§7.3) → fallback to JSON
+    expect(out).not.toContain('{Title');
     expect(out).toContain('Library_1');
   });
 
