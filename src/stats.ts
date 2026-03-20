@@ -72,7 +72,8 @@ export function readStats(): StatsAggregate {
 export function resetStats(): boolean {
   try {
     unlinkSync(getStatsPath());
-    cachedStatsPath = undefined;
+    // Reset dirEnsured so appendStat recreates the directory on next write,
+    // but keep cachedStatsPath — the path itself has not changed.
     dirEnsured = false;
     return true;
   } catch {

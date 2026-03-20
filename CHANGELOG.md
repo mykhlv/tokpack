@@ -5,7 +5,44 @@ All notable changes to tokpack will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.2 - 2026-03-20
+
+### Fixed
+
+- `runTest` race condition: `exit` event no longer reports failure when `data` handler has already succeeded
+- `resetStats` no longer incorrectly clears the cached stats path (path is unchanged after file deletion)
+- `runWrap` now correctly handles command paths containing spaces (uses pre-parsed args array instead of splitting a joined string)
+- TOON: `Infinity`/`NaN` now encode as `null`, `-0` as `0` per spec §2
+- TOON: numbers with exponent notation now expand to canonical decimal form per spec §2 (e.g. `1e6` → `1000000`)
+- TOON: string quoting now follows spec §7.2 — numeric-looking strings, leading-zero decimals, and strings starting with `-` are correctly quoted
+- TOON: keys not matching `^[A-Za-z_][A-Za-z0-9_.]*$` now fall back to JSON per spec §7.3
+- `--format` without a value no longer eats the next flag (e.g., `--format --verbose` now correctly treats `--verbose` as a flag)
+- `process.stdin.pipe(child.stdin)` in MCP proxy mode now has an error handler on stdin to prevent uncaught stream errors
+- `\r\n` in markdown table values now produces a single space instead of two
+
+### Changed
+
+- `formatRecords` internal parameter renamed from `originalLength` to `originalChars` to accurately reflect that it counts string characters, not bytes
+- `createPacker` now has an explicit `Packer` return type; `Packer` interface is exported from the public API
+- CI: added `npm audit --audit-level=high` step to the test job
+- CI: publish job no longer runs a redundant `npm run build` — `prepublishOnly` handles it
+- `typecheck` script now also type-checks `tests/` via `tsconfig.test.json`
+- `prepublishOnly` script now includes `npm test` after build
+- CLAUDE.md updated: eight source files (was five), engine constraint corrected to >=20
+
+### Added
+
+- `tsconfig.test.json` — separate TypeScript config for type-checking test files without emitting to `dist`
+- `Packer` interface exported from `tokpack` public API
+- Unit tests for `parseArgs` in `cli.ts` (flags, format resolution, `--` separator, MCP mode)
+- Unit tests for `createPipeLineProcessor` and `createMcpLineProcessor` in `stream.ts`
+- Unit test for `parseText: false` via `packText()` in squeezer
+- E2e tests for `--bench` and `--wrap` CLI commands
+- Inline comments on `JSON.stringify(data) ?? String(data)` fallback in squeezer
+
+### Security
+
+- Updated `flatted` dev dependency to 3.4.2 to fix high severity prototype pollution vulnerability (GHSA-rf6f-7fwh-wjgh)
 
 ## 0.1.1 - 2026-03-18
 

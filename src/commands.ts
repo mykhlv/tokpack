@@ -143,13 +143,13 @@ export function runBench(filePath: string | undefined): never {
 
 export function runWrap(ownArgs: string[]): never {
   const wrapIdx = ownArgs.indexOf('--wrap');
-  const cmdStr = ownArgs.slice(wrapIdx + 1).join(' ');
-  if (!cmdStr) {
+  // Use the already-parsed args array directly to correctly handle paths with spaces
+  const parts = ownArgs.slice(wrapIdx + 1);
+  if (parts.length === 0) {
     process.stderr.write('Usage: tokpack --wrap <command> [args...]\n');
     process.exit(2);
   }
 
-  const parts = cmdStr.split(/\s+/);
   const serverName = parts[parts.length - 1]
     .replace(/^@.*\//, '')
     .replace(/-mcp$/, '')
@@ -194,6 +194,7 @@ export function runTest(args: string[], sepIndex: number): void {
   }) + '\n';
 
   let output = '';
+  let succeeded = false;
   const timeout = setTimeout(() => {
     process.stderr.write('[tokpack] test: timeout — no response after 10s\n');
     testChild.kill('SIGTERM');
@@ -207,6 +208,7 @@ export function runTest(args: string[], sepIndex: number): void {
       try {
         const resp = JSON.parse(output.split('\n')[0]);
         if (resp.result?.protocolVersion) {
+          succeeded = true;
           process.stdout.write(`OK: ${testCmd} responds to MCP initialize\n`
             + `  Protocol: ${resp.result.protocolVersion}\n`
             + `  Server:   ${resp.result.serverInfo?.name ?? 'unknown'} v${resp.result.serverInfo?.version ?? '?'}\n`);
@@ -233,7 +235,8 @@ export function runTest(args: string[], sepIndex: number): void {
 
   testChild.on('exit', (code) => {
     clearTimeout(timeout);
-    if (!output.includes('\n')) {
+    // Guard against race: data handler may have already called process.exit(0)
+    if (!succeeded) {
       process.stderr.write(`FAIL: child exited with code ${code} before responding\n`);
       process.exit(1);
     }
