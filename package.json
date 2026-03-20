@@ -30,7 +30,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json",
     "bench": "npx tsx scripts/bench.ts",
     "prepublishOnly": "npm run typecheck && npm run lint && npm run build && npm test"
   },

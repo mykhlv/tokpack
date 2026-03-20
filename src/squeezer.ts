@@ -212,7 +212,7 @@ export class Squeezer {
   private formatRecords(
     data: Row[],
     id: unknown,
-    originalLength: number,
+    originalChars: number,
     dataJson: string | null,
     applyFlatten: boolean,
   ): string {
@@ -252,9 +252,9 @@ export class Squeezer {
           formatted = this.toPSV(records, keys);
           break;
       }
-      if (formatted.length >= originalLength) return fallbackJson;
+      if (formatted.length >= originalChars) return fallbackJson;
       if (this.verbose) {
-        this.logStats(id, originalLength, formatted.length);
+        this.logStats(id, originalChars, formatted.length);
       }
       return formatted;
     } catch {

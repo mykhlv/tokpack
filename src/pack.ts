@@ -2,6 +2,12 @@ import { Squeezer, type Format, type PackOptions } from './squeezer.js';
 
 export type { Format, PackOptions };
 
+/** A reusable packer instance returned by {@link createPacker}. */
+export interface Packer {
+  pack(data: unknown): string
+  packRaw(text: string): string
+}
+
 /**
  * Pack structured data (array of objects) into a token-efficient format.
  *
@@ -69,7 +75,7 @@ export function packRaw(text: string, options?: PackOptions): string {
  * packer.packRaw(text1);
  * ```
  */
-export function createPacker(options?: PackOptions) {
+export function createPacker(options?: PackOptions): Packer {
   const sq = new Squeezer(options);
   return {
     pack: (data: unknown) => sq.packData(data),

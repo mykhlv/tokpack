@@ -1,6 +1,6 @@
 // Public API — library entrypoint
 export { pack, packRaw, createPacker } from './pack.js';
-export type { Format, PackOptions } from './pack.js';
+export type { Format, PackOptions, Packer } from './pack.js';
 
 // MCP-specific exports (for advanced use cases)
 export { Squeezer } from './squeezer.js';

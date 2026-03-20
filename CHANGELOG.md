@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `runTest` race condition: `exit` event no longer reports failure when `data` handler has already succeeded
+- `resetStats` no longer incorrectly clears the cached stats path (path is unchanged after file deletion)
+- `runWrap` now correctly handles command paths containing spaces (uses pre-parsed args array instead of splitting a joined string)
 - TOON: `Infinity`/`NaN` now encode as `null`, `-0` as `0` per spec §2
 - TOON: numbers with exponent notation now expand to canonical decimal form per spec §2 (e.g. `1e6` → `1000000`)
 - TOON: string quoting now follows spec §7.2 — numeric-looking strings, leading-zero decimals, and strings starting with `-` are correctly quoted
@@ -19,11 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `formatRecords` internal parameter renamed from `originalLength` to `originalChars` to accurately reflect that it counts string characters, not bytes
+- `createPacker` now has an explicit `Packer` return type; `Packer` interface is exported from the public API
+- CI: added `npm audit --audit-level=high` step to the test job
+- CI: publish job no longer runs a redundant `npm run build` — `prepublishOnly` handles it
+- `typecheck` script now also type-checks `tests/` via `tsconfig.test.json`
 - `prepublishOnly` script now includes `npm test` after build
 - CLAUDE.md updated: eight source files (was five), engine constraint corrected to >=20
 
 ### Added
 
+- `tsconfig.test.json` — separate TypeScript config for type-checking test files without emitting to `dist`
+- `Packer` interface exported from `tokpack` public API
 - Unit tests for `parseArgs` in `cli.ts` (flags, format resolution, `--` separator, MCP mode)
 - Unit tests for `createPipeLineProcessor` and `createMcpLineProcessor` in `stream.ts`
 - Unit test for `parseText: false` via `packText()` in squeezer
