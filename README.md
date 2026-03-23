@@ -228,7 +228,7 @@ Usage:
 
 | Flag | Description |
 |------|-------------|
-| `--format <fmt>` | Output format: `psv` (default), `md`, `toon` |
+| `--format <fmt>` | Output format: `auto` (default), `psv`, `md`, `toon` |
 | `--verbose`, `-v` | Log per-call stats to stderr |
 | `--no-strip` | Disable null/empty column stripping |
 | `--no-flatten` | Disable dot-notation flattening |

@@ -2,7 +2,8 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { appendFileSync, readFileSync, unlinkSync, mkdirSync } from 'node:fs';
 
-export const BYTES_PER_TOKEN = 4;
+import { BYTES_PER_TOKEN } from './constants.js';
+export { BYTES_PER_TOKEN };
 
 const DEFAULT_STATS_PATH = join(homedir(), '.tokpack', 'stats.log');
 

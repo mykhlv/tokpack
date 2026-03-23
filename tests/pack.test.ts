@@ -53,6 +53,16 @@ describe('pack()', () => {
     expect(result).not.toContain('## PSV');
   });
 
+  it('format option: auto picks shortest output', () => {
+    const data = JSON.parse(makeArray(10));
+    const auto = pack(data, { format: 'auto' });
+    const psv = pack(data, { format: 'psv' });
+    const md = pack(data, { format: 'md' });
+    const toon = pack(data, { format: 'toon' });
+    const shortest = Math.min(psv.length, md.length, toon.length);
+    expect(auto.length).toBe(shortest);
+  });
+
   it('nested objects are flattened', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,

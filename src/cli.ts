@@ -43,10 +43,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   function resolveFormat(): Format {
     const raw = flagValue('--format');
-    if (raw && raw !== 'psv' && raw !== 'md' && raw !== 'toon') {
-      process.stderr.write(`[tokpack] unknown format "${raw}", using psv\n`);
+    if (raw && raw !== 'psv' && raw !== 'md' && raw !== 'toon' && raw !== 'auto') {
+      process.stderr.write(`[tokpack] unknown format "${raw}", using auto\n`);
     }
-    return raw === 'md' ? 'md' : raw === 'toon' ? 'toon' : 'psv';
+    if (raw === 'psv') return 'psv';
+    if (raw === 'md') return 'md';
+    if (raw === 'toon') return 'toon';
+    return 'auto';
   }
 
   const opts: ResolvedOptions = {

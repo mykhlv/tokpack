@@ -25,7 +25,7 @@ Options:
   --test               Verify child MCP server starts and responds
   --wrap <command>      Generate MCP client config snippet
 
-  --format <fmt>       Output format: psv (default), md, toon
+  --format <fmt>       Output format: auto (default), psv, md, toon
   --verbose, -v        Log per-call stats to stderr
   --no-strip           Disable null/empty column stripping
   --no-flatten         Disable dot-notation flattening
@@ -112,7 +112,7 @@ export function runBench(filePath: string | undefined): never {
   process.stdout.write(`tokpack bench: ${filePath}\n`
     + `  Lines: ${lines.length}\n\n`);
 
-  for (const f of ['psv', 'md', 'toon'] as Format[]) {
+  for (const f of ['psv', 'md', 'toon', 'auto'] as Format[]) {
     let fOrig = 0;
     let fOpt = 0;
     let fCount = 0;

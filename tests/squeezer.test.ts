@@ -1456,3 +1456,62 @@ describe('content wrapper compression', () => {
     expect(parsed.result.content).toContain('## PSV');
   });
 });
+
+// --- Auto format ---
+
+describe('auto format', () => {
+  it('picks the shortest output among all formats', () => {
+    const data = makeArray(10);
+    const auto = new Squeezer({ format: 'auto' });
+    const psv = new Squeezer({ format: 'psv' });
+    const md = new Squeezer({ format: 'md' });
+    const toon = new Squeezer({ format: 'toon' });
+
+    const autoResult = auto.process(rpc(data));
+    const psvResult = psv.process(rpc(data));
+    const mdResult = md.process(rpc(data));
+    const toonResult = toon.process(rpc(data));
+
+    const shortest = Math.min(psvResult.length, mdResult.length, toonResult.length);
+    expect(autoResult.length).toBe(shortest);
+  });
+
+  it('skips formats incompatible with keys', () => {
+    // Keys with pipes are incompatible with PSV and Markdown
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      'col|a': `val${i}`,
+      'col|b': i,
+    }));
+    // Only TOON should work (pipes in keys are fine for TOON)
+    // But TOON requires ^[A-Za-z_][A-Za-z0-9_.]*$ — so pipes fail there too
+    // This means no format is compatible → fallback to JSON
+    const sq = new Squeezer({ format: 'auto' });
+    const result = sq.packData(data);
+    // Should fall back to minified JSON
+    expect(result).toContain('"col|a"');
+  });
+
+  it('picks non-PSV format when keys contain commas', () => {
+    // Commas in keys: PSV rejects (comma is header delimiter), TOON rejects (regex)
+    // Only Markdown is compatible
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      'first,last': `user_${i}_with_long_name_for_padding`,
+      'age,years': i * 10 + 20,
+      'status': i % 2 === 0 ? 'active' : 'inactive',
+    }));
+    const sq = new Squeezer({ format: 'auto' });
+    const result = sq.packData(data);
+    // Should pick Markdown (the only compatible format)
+    expect(result).toContain('|---|');
+    expect(result).not.toContain('## PSV');
+  });
+
+  it('works with packText for structured text', () => {
+    const text = makeStructuredText(10);
+    const auto = new Squeezer({ format: 'auto' });
+    const result = auto.packText(text);
+    expect(result).not.toBe(text);
+    // Should produce a tabular format
+    expect(result.length).toBeLessThan(text.length);
+  });
+});

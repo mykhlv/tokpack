@@ -1,4 +1,4 @@
-import { BYTES_PER_TOKEN } from './stats.js';
+import { BYTES_PER_TOKEN } from './constants.js';
 
 const MIN_CHARS = 512;
 const MIN_ITEMS = 3;
@@ -60,7 +60,11 @@ function encodeSpecialChars(
   });
 }
 
-export type Format = 'psv' | 'md' | 'toon';
+export type Format = 'psv' | 'md' | 'toon' | 'auto';
+
+/** Concrete output formats (excludes 'auto' strategy). */
+type ConcreteFormat = 'psv' | 'md' | 'toon';
+const CONCRETE_FORMATS: ConcreteFormat[] = ['psv', 'md', 'toon'];
 
 export interface PackOptions {
   format?: Format
@@ -112,7 +116,7 @@ export class Squeezer {
 
   constructor(opts: SqueezerOptions = {}) {
     this.verbose = opts.verbose ?? false;
-    this.format = opts.format ?? 'psv';
+    this.format = opts.format ?? 'auto';
     this.stripEmpty = opts.stripEmpty ?? true;
     this.flatten = opts.flatten ?? true;
     this.parseText = opts.parseText ?? true;
@@ -240,19 +244,28 @@ export class Squeezer {
     }
 
     try {
-      let formatted: string;
-      switch (this.format) {
-        case 'md':
-          formatted = this.toMarkdownTable(records, keys);
-          break;
-        case 'toon':
-          formatted = this.toTOON(records, keys);
-          break;
-        default:
-          formatted = this.toPSV(records, keys);
-          break;
+      let formatted: string | undefined;
+
+      if (this.format === 'auto') {
+        // Try all compatible formats, pick shortest
+        for (const fmt of CONCRETE_FORMATS) {
+          if (!Squeezer.keysValidForFormat(keys, fmt)) continue;
+          const candidate = this.renderFormat(records, keys, fmt);
+          if (formatted === undefined || candidate.length < formatted.length) {
+            formatted = candidate;
+          }
+        }
+      } else {
+        if (!Squeezer.keysValidForFormat(keys, this.format)) {
+          if (this.verbose) {
+            process.stderr.write(`[tokpack] id:${id} skip: keys incompatible with ${this.format}\n`);
+          }
+          return fallbackJson;
+        }
+        formatted = this.renderFormat(records, keys, this.format);
       }
-      if (formatted.length >= originalChars) return fallbackJson;
+
+      if (formatted === undefined || formatted.length >= originalChars) return fallbackJson;
       if (this.verbose) {
         this.logStats(id, originalChars, formatted.length);
       }
@@ -416,10 +429,6 @@ export class Squeezer {
 
     const keys = Object.keys(data[0]);
     if (keys.length === 0) return null;
-    if (this.format === 'psv' && keys.some(k => /[,|]/.test(k))) return null;
-    if (this.format === 'md' && keys.some(k => k.includes('|'))) return null;
-    // TOON §7.3: unquoted keys must match ^[A-Za-z_][A-Za-z0-9_.]*$
-    if (this.format === 'toon' && keys.some(k => !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(k))) return null;
 
     const keyCount = keys.length;
     for (const rec of data) {
@@ -431,6 +440,25 @@ export class Squeezer {
     }
 
     return keys;
+  }
+
+  /** Check whether keys are compatible with a specific output format. */
+  private static keysValidForFormat(keys: string[], format: ConcreteFormat): boolean {
+    switch (format) {
+      case 'psv': return !keys.some(k => /[,|]/.test(k));
+      case 'md': return !keys.some(k => k.includes('|'));
+      // TOON §7.3: unquoted keys must match ^[A-Za-z_][A-Za-z0-9_.]*$
+      case 'toon': return !keys.some(k => !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(k));
+    }
+  }
+
+  /** Render records in a specific concrete format. */
+  private renderFormat(data: Row[], keys: string[], format: ConcreteFormat): string {
+    switch (format) {
+      case 'md': return this.toMarkdownTable(data, keys);
+      case 'toon': return this.toTOON(data, keys);
+      default: return this.toPSV(data, keys);
+    }
   }
 
   /** Extract row values. Assumes data is pre-validated by getUniformKeys(). */
