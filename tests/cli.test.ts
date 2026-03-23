@@ -65,7 +65,7 @@ describe('parseArgs', () => {
       const { opts } = parseArgs(argv());
       expect(opts.verbose).toBe(false);
       expect(opts.disabled).toBe(false);
-      expect(opts.format).toBe('psv');
+      expect(opts.format).toBe('auto');
       expect(opts.stripEmpty).toBe(true);
       expect(opts.flatten).toBe(true);
       expect(opts.parseText).toBe(true);
@@ -89,17 +89,22 @@ describe('parseArgs', () => {
       expect(opts.format).toBe('toon');
     });
 
+    it('--format auto sets format to auto', () => {
+      const { opts } = parseArgs(argv('--format', 'auto'));
+      expect(opts.format).toBe('auto');
+    });
+
     it('--format without value does not eat the next flag', () => {
       const { opts } = parseArgs(argv('--format', '--verbose'));
-      expect(opts.format).toBe('psv'); // fallback, not "--verbose"
+      expect(opts.format).toBe('auto'); // fallback, not "--verbose"
       expect(opts.verbose).toBe(true); // --verbose should still work
     });
 
-    it('--format with unknown value falls back to psv', () => {
+    it('--format with unknown value falls back to auto', () => {
       // Suppress stderr warning
       const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
       const { opts } = parseArgs(argv('--format', 'xml'));
-      expect(opts.format).toBe('psv');
+      expect(opts.format).toBe('auto');
       stderrSpy.mockRestore();
     });
   });
