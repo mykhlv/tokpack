@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `auto` format — tries all formats and picks the shortest output (now the default)
+- Interactive web playground (Vite + React) for trying tokpack in the browser
+- GitHub Actions workflow for automatic playground deployment to GitHub Pages
+
 ## 0.1.2 - 2026-03-20
 
 ### Fixed

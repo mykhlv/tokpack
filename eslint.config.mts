@@ -8,7 +8,7 @@ export default defineConfig(
   tseslint.configs.recommended,
   stylistic.configs.recommended,
   {
-    ignores: ['dist/', 'node_modules/', 'tests/fixtures/'],
+    ignores: ['dist/', 'node_modules/', 'tests/fixtures/', 'playground/'],
   },
   {
     rules: {
