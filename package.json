@@ -1,6 +1,6 @@
 {
   "name": "tokpack",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Pack more data into fewer tokens — JSON compression library for LLM context optimization",
   "type": "module",
   "main": "./dist/lib.cjs",

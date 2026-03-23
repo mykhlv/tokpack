@@ -5,13 +5,11 @@ All notable changes to tokpack will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.3 - 2026-03-23
 
 ### Added
 
 - `auto` format — tries all formats and picks the shortest output (now the default)
-- Interactive web playground (Vite + React) for trying tokpack in the browser
-- GitHub Actions workflow for automatic playground deployment to GitHub Pages
 
 ## 0.1.2 - 2026-03-20
 
