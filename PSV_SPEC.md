@@ -77,6 +77,8 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 | `a` &#124; `b` (value contains pipe) | `a\|b` |
 | `path\to\file` (contains backslashes) | `path\\to\\file` |
 | `line1` + newline + `line2` | `line1\nline2` |
+| `foo\|bar` (backslash then pipe) | `foo\\\|bar` |
+| `🎉 emoji` | `🎉 emoji` |
 | (empty string) | (empty) |
 | (null) | (empty) |
 
@@ -84,7 +86,7 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 
 - **Uniform keys**: All rows must have the same set of keys in the same order.
 - **Flat values**: All values must be scalars (string, number, boolean, null). Nested objects or arrays must be flattened or stringified before encoding.
-- **No commas in column names**: Column names containing commas are rejected.
+- **No commas or pipes in column names**: Column names containing `,` or `|` are rejected.
 - **Single-line rows**: Each row occupies exactly one line (newlines in values are escaped).
 
 ## Decoding Algorithm
@@ -92,11 +94,17 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 ```
 1. Read the first line as the header.
 2. Verify it starts with "## PSV|".
-3. Split by "|" to extract: magic and columns_string.
+3. Extract everything after "## PSV|" as columns_string.
 4. Split columns_string by "," to get column names.
-5. For each subsequent line:
-   a. Split by "|" respecting escapes (unescaped pipes only).
-   b. Unescape each value: \| → |, \\ → \, \n → newline, \r → CR.
+5. For each subsequent non-empty line:
+   a. Split by unescaped "|" only. Scan character-by-character:
+      - If current char is "\" and next char exists, consume both
+        as a pair (escaped content) and advance by 2.
+      - If current char is "|", end the current field and start a new one.
+      - Otherwise, append the character to the current field.
+   b. Unescape each field value character-by-character:
+      \| → |, \\ → \, \n → newline, \r → CR.
+      Unknown escape sequences (e.g. \t) SHOULD be preserved literally.
    c. Map values to column names by position.
    d. Empty values may represent null or empty string (context-dependent).
 ```
@@ -123,3 +131,27 @@ In the table below, "Original value" refers to the raw in-memory string (e.g., `
 ```
 
 **Token savings:** ~50% fewer tokens compared to minified JSON for typical datasets.
+
+## Edge Cases
+
+### CRLF normalization
+
+Encoders SHOULD normalize `\r\n` (CRLF) sequences to `\n` (LF) before escaping. This prevents CRLF from producing two separate escape sequences (`\r\n`) when a single `\n` is sufficient. Decoders should handle both `\r` and `\n` escape sequences regardless.
+
+### Backslash before pipe
+
+When a raw value contains `\|` (backslash followed by pipe), both characters are escaped independently: `\` → `\\`, `|` → `\|`, producing `\\\|` in the output. Decoders must process escape sequences left-to-right: `\\` is consumed as a literal backslash, then `\|` as a literal pipe.
+
+Conversely, `\\|` in encoded output means: `\\` (literal backslash) followed by `|` (column delimiter) — this splits into two columns.
+
+### Empty dataset
+
+A PSV document with a header and zero data rows is valid:
+
+```
+## PSV|id,name,email
+```
+
+### Unicode
+
+All Unicode content (emoji, CJK, diacritics, RTL text) is preserved as-is without escaping.

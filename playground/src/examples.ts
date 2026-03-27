@@ -146,10 +146,24 @@ function buildStructuredText(n: number): string {
   ).join('\n\n');
 }
 
+function buildPythonRepr(n: number): string {
+  const items = Array.from({ length: n }, (_, i) => {
+    const first = pick(firstNames, i);
+    const last = pick(lastNames, i + 7);
+    const domain = pick(domains, i);
+    const role = pick(roles, i);
+    const active = i % 7 !== 0 ? 'True' : 'False';
+    const dept = i % 6 === 0 ? 'None' : `'${pick(departments, i + 3)}'`;
+    return `{'id': ${i + 1}, 'name': '${first} ${last}', 'email': '${first.toLowerCase()}.${last.toLowerCase()}@${domain}', 'role': '${role}', 'department': ${dept}, 'active': ${active}}`;
+  });
+  return `[${items.join(', ')}]`;
+}
+
 export const exampleDefs: ExampleDef[] = [
   { label: 'Logs', type: 'json', build: (n) => JSON.stringify(buildLogs(n), null, 2) },
   { label: 'Users', type: 'json', build: (n) => JSON.stringify(buildUsers(n), null, 2) },
   { label: 'Products', type: 'json', build: (n) => JSON.stringify(buildProducts(n), null, 2) },
   { label: 'Events', type: 'json', build: (n) => JSON.stringify(buildEvents(n), null, 2) },
+  { label: 'Python repr', type: 'text', build: buildPythonRepr },
   { label: 'Structured text', type: 'text', build: buildStructuredText },
 ];

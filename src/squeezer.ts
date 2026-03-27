@@ -32,6 +32,11 @@ function toonCanonicalNumber(val: number): string {
   return sign + digits.slice(0, dot) + '.' + digits.slice(dot);
 }
 
+function isIdentStart(ch: string): boolean {
+  const c = ch.charCodeAt(0);
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95; // A-Z, a-z, _
+}
+
 function isPlainObject(val: unknown): val is Row {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
@@ -71,6 +76,7 @@ export interface PackOptions {
   stripEmpty?: boolean
   flatten?: boolean
   parseText?: boolean
+  parsePython?: boolean
   verbose?: boolean
 }
 
@@ -98,6 +104,7 @@ export class Squeezer {
   private stripEmpty: boolean;
   private flatten: boolean;
   private parseText: boolean;
+  private parsePython: boolean;
   private unwrapContent: boolean;
 
   private static readonly SEPARATORS: RegExp[] = [
@@ -120,6 +127,7 @@ export class Squeezer {
     this.stripEmpty = opts.stripEmpty ?? true;
     this.flatten = opts.flatten ?? true;
     this.parseText = opts.parseText ?? true;
+    this.parsePython = opts.parsePython ?? true;
     this.unwrapContent = opts.unwrapContent ?? false;
   }
 
@@ -195,7 +203,15 @@ export class Squeezer {
     try {
       parsed = JSON.parse(text);
     } catch {
-      // Not valid JSON — try structured text parsing
+      // Not valid JSON — try Python repr normalization
+      if (this.parsePython) {
+        const normalized = this.tryNormalizePythonRepr(text);
+        if (normalized !== null) {
+          return this.tryOptimize(normalized, id);
+        }
+      }
+
+      // Try structured text parsing
       if (this.parseText) {
         const records = this.tryParseStructuredText(text);
         if (records && records.length >= MIN_ITEMS) {
@@ -211,6 +227,112 @@ export class Squeezer {
     }
 
     return this.formatRecords(parsed, id, text.length, null, true);
+  }
+
+  /**
+   * Attempt to normalize Python repr format to valid JSON.
+   * Converts single-quoted strings to double-quoted, None→null, True→true,
+   * False→false, tuples→arrays. Returns null if normalization fails.
+   */
+  private tryNormalizePythonRepr(text: string): string | null {
+    const trimmed = text.trimStart();
+    // Quick bail-out: must contain single quotes and start with [ or {
+    if (!text.includes("'") || (trimmed[0] !== '[' && trimmed[0] !== '{')) {
+      return null;
+    }
+
+    const len = text.length;
+    let result = '';
+    let state: 'outside' | 'in_single' | 'in_double' = 'outside';
+    let ident = '';
+
+    const flushIdent = (): void => {
+      if (ident.length > 0) {
+        if (ident === 'None') result += 'null';
+        else if (ident === 'True') result += 'true';
+        else if (ident === 'False') result += 'false';
+        else result += ident;
+        ident = '';
+      }
+    };
+
+    for (let i = 0; i < len; i++) {
+      const ch = text[i];
+
+      if (state === 'outside') {
+        // Accumulate identifier characters
+        if (isIdentStart(ch)) {
+          ident += ch;
+          continue;
+        }
+        flushIdent();
+
+        if (ch === "'") {
+          result += '"';
+          state = 'in_single';
+        } else if (ch === '"') {
+          result += '"';
+          state = 'in_double';
+        } else if (ch === '(') {
+          result += '[';
+        } else if (ch === ')') {
+          result += ']';
+        } else {
+          result += ch;
+        }
+      } else if (state === 'in_single') {
+        if (ch === '\\' && i + 1 < len) {
+          const next = text[i + 1];
+          if (next === "'") {
+            // Unescape \' — single quote doesn't need escaping in JSON double-quoted string
+            result += "'";
+            i++;
+          } else if (next === '\\') {
+            result += '\\\\';
+            i++;
+          } else {
+            // Pass through other escape sequences as-is
+            result += ch + next;
+            i++;
+          }
+        } else if (ch === '"') {
+          // Must escape double quote inside JSON double-quoted string
+          result += '\\"';
+        } else if (ch === "'") {
+          // End of single-quoted string
+          result += '"';
+          state = 'outside';
+        } else {
+          result += ch;
+        }
+      } else {
+        // state === 'in_double'
+        if (ch === '\\' && i + 1 < len) {
+          result += ch + text[i + 1];
+          i++;
+        } else if (ch === '"') {
+          result += '"';
+          state = 'outside';
+        } else {
+          result += ch;
+        }
+      }
+    }
+
+    // Flush any remaining identifier
+    flushIdent();
+
+    // Must end outside strings
+    if (state !== 'outside') return null;
+
+    // Validate the result is valid JSON
+    try {
+      JSON.parse(result);
+    } catch {
+      return null;
+    }
+
+    return result;
   }
 
   private formatRecords(

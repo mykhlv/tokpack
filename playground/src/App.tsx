@@ -39,6 +39,7 @@ export function App() {
   const [stripEmpty, setStripEmpty] = useState(true);
   const [flatten, setFlatten] = useState(true);
   const [parseText, setParseText] = useState(true);
+  const [parsePython, setParsePython] = useState(true);
   const [customInput, setCustomInput] = useState<string | null>(null);
   const { countTokens, exact } = useTokenizer();
 
@@ -72,11 +73,11 @@ export function App() {
   const output = useMemo(() => {
     if (!input.trim()) return '';
     try {
-      return packRaw(input, { format, stripEmpty, flatten, parseText });
+      return packRaw(input, { format, stripEmpty, flatten, parseText, parsePython });
     } catch {
       return input;
     }
-  }, [input, format, stripEmpty, flatten, parseText]);
+  }, [input, format, stripEmpty, flatten, parseText, parsePython]);
 
   const originalSize = useMemo(() => byteLength(input), [input]);
   const compressedSize = useMemo(() => byteLength(output), [output]);
@@ -96,10 +97,12 @@ export function App() {
           stripEmpty={stripEmpty}
           flatten={flatten}
           parseText={parseText}
+          parsePython={parsePython}
           onFormatChange={setFormat}
           onStripEmptyChange={setStripEmpty}
           onFlattenChange={setFlatten}
           onParseTextChange={setParseText}
+          onParsePythonChange={setParsePython}
         />
       </header>
       <Examples

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Python repr normalization — converts Python `str()` output (single quotes, `None`, `True`/`False`, tuples) to valid JSON before compression. Enables tokpack to work with Python MCP servers. Disable with `--no-parse-python`.
+- `decodePSV()` — library function for decoding PSV-formatted strings back to objects
+- PSV spec edge cases — CRLF normalization, backslash+pipe, unicode, empty datasets, improved decoding algorithm
+
 ## 0.1.3 - 2026-03-23
 
 ### Added
