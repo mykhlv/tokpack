@@ -2,6 +2,7 @@
  * PSV (Pipe-Separated Values) decoder.
  *
  * Implemented strictly from PSV_SPEC.md — does not reference encoder internals.
+ * Used as a test utility to validate the spec via round-trip tests.
  */
 
 const MAGIC = '## PSV|';

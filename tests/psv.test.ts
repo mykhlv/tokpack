@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Squeezer } from '../src/squeezer.js';
-import { decodePSV } from '../src/psv.js';
+import { decodePSV } from './decode-psv.js';
 
 const sq = new Squeezer({ format: 'psv' });
 
