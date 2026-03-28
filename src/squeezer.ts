@@ -32,6 +32,16 @@ function toonCanonicalNumber(val: number): string {
   return sign + digits.slice(0, dot) + '.' + digits.slice(dot);
 }
 
+function isIdentStart(ch: string): boolean {
+  const c = ch.charCodeAt(0);
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95; // A-Z, a-z, _
+}
+
+function isIdentContinue(ch: string): boolean {
+  const c = ch.charCodeAt(0);
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 48 && c <= 57); // A-Z, a-z, _, 0-9
+}
+
 function isPlainObject(val: unknown): val is Row {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
@@ -71,6 +81,7 @@ export interface PackOptions {
   stripEmpty?: boolean
   flatten?: boolean
   parseText?: boolean
+  parsePython?: boolean
   verbose?: boolean
 }
 
@@ -98,6 +109,7 @@ export class Squeezer {
   private stripEmpty: boolean;
   private flatten: boolean;
   private parseText: boolean;
+  private parsePython: boolean;
   private unwrapContent: boolean;
 
   private static readonly SEPARATORS: RegExp[] = [
@@ -120,6 +132,7 @@ export class Squeezer {
     this.stripEmpty = opts.stripEmpty ?? true;
     this.flatten = opts.flatten ?? true;
     this.parseText = opts.parseText ?? true;
+    this.parsePython = opts.parsePython ?? true;
     this.unwrapContent = opts.unwrapContent ?? false;
   }
 
@@ -164,15 +177,26 @@ export class Squeezer {
       const content = packet.result?.content;
       if (!Array.isArray(content)) return line;
 
-      let changed = false;
-      for (const item of content) {
+      // Build replacement values separately to avoid mutating the parsed
+      // object before JSON.stringify succeeds (if stringify fails after
+      // in-place mutation, the catch would return the original line but the
+      // parsed packet would already be corrupted).
+      const replacements: { index: number, text: string }[] = [];
+      for (let i = 0; i < content.length; i++) {
+        const item = content[i];
         if (item.type !== 'text' || typeof item.text !== 'string') continue;
         if (item.text.length < MIN_CHARS) continue;
         const optimized = this.tryOptimize(item.text, packet.id);
         if (optimized !== item.text) {
-          item.text = optimized;
-          changed = true;
+          replacements.push({ index: i, text: optimized });
         }
+      }
+
+      let changed = replacements.length > 0;
+
+      // Apply all replacements at once, right before serialization
+      for (const r of replacements) {
+        content[r.index].text = r.text;
       }
 
       // Unwrap single-text content: [{type:"text",text:"..."}] → "..."
@@ -195,7 +219,15 @@ export class Squeezer {
     try {
       parsed = JSON.parse(text);
     } catch {
-      // Not valid JSON — try structured text parsing
+      // Not valid JSON — try Python repr normalization
+      if (this.parsePython) {
+        const normalized = this.tryNormalizePythonRepr(text);
+        if (normalized !== null) {
+          return this.tryOptimize(normalized, id);
+        }
+      }
+
+      // Try structured text parsing
       if (this.parseText) {
         const records = this.tryParseStructuredText(text);
         if (records && records.length >= MIN_ITEMS) {
@@ -213,6 +245,112 @@ export class Squeezer {
     return this.formatRecords(parsed, id, text.length, null, true);
   }
 
+  /**
+   * Attempt to normalize Python repr format to valid JSON.
+   * Converts single-quoted strings to double-quoted, None→null, True→true,
+   * False→false, tuples→arrays. Returns null if normalization fails.
+   */
+  private tryNormalizePythonRepr(text: string): string | null {
+    const trimmed = text.trimStart();
+    // Quick bail-out: must contain single quotes and start with [ or {
+    if (!text.includes("'") || (trimmed[0] !== '[' && trimmed[0] !== '{')) {
+      return null;
+    }
+
+    const len = text.length;
+    let result = '';
+    let state: 'outside' | 'in_single' | 'in_double' = 'outside';
+    let ident = '';
+
+    const flushIdent = (): void => {
+      if (ident.length > 0) {
+        if (ident === 'None') result += 'null';
+        else if (ident === 'True') result += 'true';
+        else if (ident === 'False') result += 'false';
+        else result += ident;
+        ident = '';
+      }
+    };
+
+    for (let i = 0; i < len; i++) {
+      const ch = text[i];
+
+      if (state === 'outside') {
+        // Accumulate identifier characters
+        if (ident.length > 0 ? isIdentContinue(ch) : isIdentStart(ch)) {
+          ident += ch;
+          continue;
+        }
+        flushIdent();
+
+        if (ch === "'") {
+          result += '"';
+          state = 'in_single';
+        } else if (ch === '"') {
+          result += '"';
+          state = 'in_double';
+        } else if (ch === '(') {
+          result += '[';
+        } else if (ch === ')') {
+          result += ']';
+        } else {
+          result += ch;
+        }
+      } else if (state === 'in_single') {
+        if (ch === '\\' && i + 1 < len) {
+          const next = text[i + 1];
+          if (next === "'") {
+            // Unescape \' — single quote doesn't need escaping in JSON double-quoted string
+            result += "'";
+            i++;
+          } else if (next === '\\') {
+            result += '\\\\';
+            i++;
+          } else {
+            // Pass through other escape sequences as-is
+            result += ch + next;
+            i++;
+          }
+        } else if (ch === '"') {
+          // Must escape double quote inside JSON double-quoted string
+          result += '\\"';
+        } else if (ch === "'") {
+          // End of single-quoted string
+          result += '"';
+          state = 'outside';
+        } else {
+          result += ch;
+        }
+      } else {
+        // state === 'in_double'
+        if (ch === '\\' && i + 1 < len) {
+          result += ch + text[i + 1];
+          i++;
+        } else if (ch === '"') {
+          result += '"';
+          state = 'outside';
+        } else {
+          result += ch;
+        }
+      }
+    }
+
+    // Flush any remaining identifier
+    flushIdent();
+
+    // Must end outside strings
+    if (state !== 'outside') return null;
+
+    // Validate the result is valid JSON
+    try {
+      JSON.parse(result);
+    } catch {
+      return null;
+    }
+
+    return result;
+  }
+
   private formatRecords(
     data: Row[],
     id: unknown,
@@ -220,8 +358,15 @@ export class Squeezer {
     dataJson: string | null,
     applyFlatten: boolean,
   ): string {
-    // Keep original JSON for fallback (before any mutations)
-    const fallbackJson = dataJson ?? JSON.stringify(data);
+    // Lazy fallback JSON: only stringify when actually needed (fallback path).
+    // When called from tryOptimize, dataJson is null — avoid eager stringify
+    // if tabular conversion succeeds.
+    const getFallbackJson = (): string => {
+      if (dataJson !== null) return dataJson;
+      if (fallbackJson === null) fallbackJson = JSON.stringify(data);
+      return fallbackJson;
+    };
+    let fallbackJson: string | null = null;
     let records: Row[] = data;
 
     // Pre-processing: flatten nested objects via dot-notation
@@ -240,7 +385,7 @@ export class Squeezer {
       if (this.verbose) {
         process.stderr.write(`[tokpack] id:${id} skip: non-uniform keys\n`);
       }
-      return fallbackJson;
+      return getFallbackJson();
     }
 
     try {
@@ -260,12 +405,12 @@ export class Squeezer {
           if (this.verbose) {
             process.stderr.write(`[tokpack] id:${id} skip: keys incompatible with ${this.format}\n`);
           }
-          return fallbackJson;
+          return getFallbackJson();
         }
         formatted = this.renderFormat(records, keys, this.format);
       }
 
-      if (formatted === undefined || formatted.length >= originalChars) return fallbackJson;
+      if (formatted === undefined || formatted.length >= originalChars) return getFallbackJson();
       if (this.verbose) {
         this.logStats(id, originalChars, formatted.length);
       }
@@ -274,7 +419,7 @@ export class Squeezer {
       if (this.verbose) {
         process.stderr.write(`[tokpack] id:${id} skip: nested data detected\n`);
       }
-      return fallbackJson;
+      return getFallbackJson();
     }
   }
 

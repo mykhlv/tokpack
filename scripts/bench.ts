@@ -4,7 +4,10 @@
 //
 // Usage: npx tsx scripts/bench.ts
 
-import { Squeezer, type Format } from '../src/squeezer.js';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Squeezer } from '../src/squeezer.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,8 +44,21 @@ function rpc(text: string): string {
   });
 }
 
-function approxTokens(str: string): number {
-  return Math.ceil(str.length / 4);
+let countTokens: (str: string) => number = str => Math.ceil(str.length / 4);
+let tokenLabel = '~Tokens';
+
+function initTokenizer(): void {
+  try {
+    const scriptDir = dirname(fileURLToPath(import.meta.url));
+    const req = createRequire(resolve(scriptDir, '..', 'playground', 'package.json'));
+    const { Tiktoken } = req('js-tiktoken/lite');
+    const ranks = req('js-tiktoken/ranks/o200k_base');
+    const enc = new Tiktoken(ranks);
+    countTokens = str => enc.encode(str).length;
+    tokenLabel = 'Tokens';
+  } catch {
+    // js-tiktoken not available in playground — use heuristic
+  }
 }
 
 function extractText(rpcLine: string): string {
@@ -54,11 +70,13 @@ function fmtPct(v: number): string {
   return `${v > 0 ? '-' : '+'}${Math.abs(v)}%`;
 }
 
-function makeSqueezers(): Record<Format, Squeezer> {
-  const formats: Format[] = ['psv', 'md', 'toon'];
+type ConcreteFormat = 'psv' | 'md' | 'toon';
+
+function makeSqueezers(): Record<ConcreteFormat, Squeezer> {
+  const formats: ConcreteFormat[] = ['psv', 'md', 'toon'];
   return Object.fromEntries(
     formats.map(f => [f, new Squeezer({ format: f, flatten: true, stripEmpty: true })]),
-  ) as Record<Format, Squeezer>;
+  ) as Record<ConcreteFormat, Squeezer>;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +182,8 @@ const configs: BenchConfig[] = [
 // ---------------------------------------------------------------------------
 
 function benchSize(data: Record<string, unknown>[], prettyJson: string, minJson: string): BenchResult[] {
-  const prettyTokens = approxTokens(prettyJson);
-  const minTokens = approxTokens(minJson);
+  const prettyTokens = countTokens(prettyJson);
+  const minTokens = countTokens(minJson);
 
   return configs.map((cfg): BenchResult => {
     let chars: number;
@@ -174,12 +192,12 @@ function benchSize(data: Record<string, unknown>[], prettyJson: string, minJson:
     if (cfg.type === 'json') {
       const json = cfg.pretty ? prettyJson : minJson;
       chars = json.length;
-      tokens = approxTokens(json);
+      tokens = countTokens(json);
     } else {
       const output = cfg.sq.process(rpc(prettyJson));
       const text = extractText(output);
       chars = text.length;
-      tokens = approxTokens(text);
+      tokens = countTokens(text);
     }
 
     return {
@@ -196,12 +214,15 @@ function benchSize(data: Record<string, unknown>[], prettyJson: string, minJson:
 // Main
 // ---------------------------------------------------------------------------
 
+initTokenizer();
+
 console.log('# tokpack benchmarks\n');
+console.log(`Tokenizer: ${tokenLabel === 'Tokens' ? 'o200k_base' : 'heuristic (~4 chars/token)'}`);
 console.log(`Generated: ${new Date().toISOString().slice(0, 10)}\n`);
 
 for (const scenario of scenarios) {
   console.log(`## ${scenario.name}\n`);
-  console.log('| Rows | Format | Chars | ~Tokens | vs JSON min | vs pretty |');
+  console.log(`| Rows | Format | Chars | ${tokenLabel} | vs JSON min | vs pretty |`);
   console.log('|------|--------|-------|---------|-------------|-----------|');
 
   for (let si = 0; si < sizes.length; si++) {
@@ -239,12 +260,12 @@ for (const scenario of scenarios) {
   const data = scenario.gen(100);
   const prettyJson = JSON.stringify(data, null, 2);
   const minJson = JSON.stringify(data);
-  const prettyTokens = approxTokens(prettyJson);
-  const minTokens = approxTokens(minJson);
+  const prettyTokens = countTokens(prettyJson);
+  const minTokens = countTokens(minJson);
 
   const candidates = (['psv', 'md', 'toon'] as const).map((f) => {
     const text = extractText(squeezers[f].process(rpc(prettyJson)));
-    return { tokens: approxTokens(text), fmt: f.toUpperCase() };
+    return { tokens: countTokens(text), fmt: f.toUpperCase() };
   });
   const best = candidates.reduce((a, b) => a.tokens <= b.tokens ? a : b);
   const savings = Math.round((1 - best.tokens / minTokens) * 100);

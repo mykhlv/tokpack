@@ -19,22 +19,26 @@ interface ControlsProps {
   stripEmpty: boolean;
   flatten: boolean;
   parseText: boolean;
+  parsePython: boolean;
   onFormatChange: (format: Format) => void;
   onStripEmptyChange: (value: boolean) => void;
   onFlattenChange: (value: boolean) => void;
   onParseTextChange: (value: boolean) => void;
+  onParsePythonChange: (value: boolean) => void;
 }
 
-const TOGGLES: { key: 'stripEmpty' | 'flatten' | 'parseText'; label: string }[] = [
+const TOGGLES: { key: 'stripEmpty' | 'flatten' | 'parseText' | 'parsePython'; label: string }[] = [
   { key: 'stripEmpty', label: 'Strip empty' },
   { key: 'flatten', label: 'Flatten' },
   { key: 'parseText', label: 'Parse text' },
+  { key: 'parsePython', label: 'Parse Python' },
 ];
 
 const TOGGLE_HANDLERS = {
   stripEmpty: 'onStripEmptyChange',
   flatten: 'onFlattenChange',
   parseText: 'onParseTextChange',
+  parsePython: 'onParsePythonChange',
 } as const;
 
 export function Controls(props: ControlsProps) {

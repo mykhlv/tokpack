@@ -61,6 +61,11 @@ describe('parseArgs', () => {
       expect(opts.disabled).toBe(true);
     });
 
+    it('--no-parse-python sets parsePython: false', () => {
+      const { opts } = parseArgs(argv('--no-parse-python'));
+      expect(opts.parsePython).toBe(false);
+    });
+
     it('defaults are correct when no flags provided', () => {
       const { opts } = parseArgs(argv());
       expect(opts.verbose).toBe(false);
@@ -69,6 +74,7 @@ describe('parseArgs', () => {
       expect(opts.stripEmpty).toBe(true);
       expect(opts.flatten).toBe(true);
       expect(opts.parseText).toBe(true);
+      expect(opts.parsePython).toBe(true);
       expect(opts.unwrapContent).toBe(false);
     });
   });

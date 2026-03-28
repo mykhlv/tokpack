@@ -21,6 +21,7 @@ export interface ResolvedOptions {
   stripEmpty: boolean
   flatten: boolean
   parseText: boolean
+  parsePython: boolean
   unwrapContent: boolean
 }
 
@@ -59,6 +60,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     stripEmpty: !hasFlag('--no-strip'),
     flatten: !hasFlag('--no-flatten'),
     parseText: !hasFlag('--no-parse-text'),
+    parsePython: !hasFlag('--no-parse-python'),
     unwrapContent: hasFlag('--unwrap'),
   };
 

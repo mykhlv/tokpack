@@ -84,6 +84,14 @@ export function makeHeaderSeparatedText(n: number): string {
   ].join('\n')).join('\n');
 }
 
+/** Generate a Python repr array of N objects */
+export function makePythonRepr(n: number): string {
+  const items = Array.from({ length: n }, (_, i) =>
+    `{'id': ${i + 1}, 'name': 'user_${i + 1}', 'email': 'user${i + 1}@example.com', 'active': True}`,
+  );
+  return `[${items.join(', ')}]`;
+}
+
 /** Spawn the shim with a child command, collect stdout/stderr.
  *  Always adds --mcp flag for proxy mode (child command). */
 export function runShim(

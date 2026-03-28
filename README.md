@@ -1,6 +1,6 @@
 # tokpack
 
-Pack more data into fewer tokens — JSON compression library and CLI tool for LLM context optimization. Transforms verbose JSON arrays and structured text into token-efficient tabular formats (PSV, Markdown, TOON), saving 45-72% on tokens.
+Pack more data into fewer tokens — JSON compression library and CLI tool for LLM context optimization. Transforms verbose JSON arrays and structured text into token-efficient tabular formats (PSV, Markdown, TOON), saving 38-64% on tokens.
 
 Three ways to use:
 - **Library** — `import { pack } from 'tokpack'`
@@ -11,78 +11,90 @@ Zero runtime dependencies. Node.js >= 20.
 
 ## Benchmarks
 
-Summary at 100 rows (tokens, ~4 chars/token):
+Summary at 100 rows (tokens counted with o200k_base tokenizer):
 
 | Scenario | JSON min | tokpack | Savings |
 |----------|----------|---------|---------|
-| Flat (DB users) | 2,141 | 1,051 | **-51%** |
-| Nested (profiles) | 2,655 | 1,120 | **-58%** |
-| Null-heavy (sparse) | 3,611 | 1,046 | **-71%** |
-| DB rows (tasks) | 7,410 | 4,077 | **-45%** |
-| Mixed (nested+nulls) | 4,016 | 1,114 | **-72%** |
+| Flat (DB users) | 2,502 | 1,411 | **-44%** |
+| Nested (profiles) | 3,222 | 1,695 | **-47%** |
+| Null-heavy (sparse) | 3,902 | 1,411 | **-64%** |
+| DB rows (tasks) | 7,827 | 4,841 | **-38%** |
+| Mixed (nested+nulls) | 4,992 | 2,310 | **-54%** |
 
 Run `npm run bench` to reproduce.
 
 <details>
-<summary>Detailed benchmarks (all scenarios x 10/50/100/500 rows)</summary>
+<summary>Detailed benchmarks (all scenarios x 10/100/500 rows)</summary>
 
 ### Flat (DB users)
 
-| Rows | Format | ~Tokens | vs JSON min |
-|------|--------|---------|-------------|
-| 10 | JSON (minified) | 208 | baseline |
-| 10 | PSV + strip + flatten | 108 | -48% |
-| 10 | MD + strip + flatten | 143 | -31% |
-| 100 | JSON (minified) | 2,141 | baseline |
-| 100 | PSV + strip + flatten | 1,051 | -51% |
-| 100 | MD + strip + flatten | 1,356 | -37% |
-| 500 | JSON (minified) | 11,028 | baseline |
-| 500 | PSV + strip + flatten | 5,538 | -50% |
-| 500 | MD + strip + flatten | 7,042 | -36% |
+| Rows | Format | Tokens | vs JSON min |
+|------|--------|--------|-------------|
+| 10 | JSON (minified) | 252 | baseline |
+| 10 | PSV + strip + flatten | 160 | -37% |
+| 10 | MD + strip + flatten | 192 | -24% |
+| 100 | JSON (minified) | 2,502 | baseline |
+| 100 | PSV + strip + flatten | 1,510 | -40% |
+| 100 | MD + strip + flatten | 1,722 | -31% |
+| 500 | JSON (minified) | 12,502 | baseline |
+| 500 | PSV + strip + flatten | 7,510 | -40% |
+| 500 | MD + strip + flatten | 8,522 | -32% |
 
 ### Nested (profiles)
 
-| Rows | Format | ~Tokens | vs JSON min |
-|------|--------|---------|-------------|
-| 10 | JSON (minified) | 260 | baseline |
-| 10 | PSV + strip + flatten | 120 | -54% |
-| 100 | JSON (minified) | 2,655 | baseline |
-| 100 | PSV + strip + flatten | 1,120 | -58% |
-| 500 | JSON (minified) | 13,595 | baseline |
-| 500 | PSV + strip + flatten | 5,860 | -57% |
+| Rows | Format | Tokens | vs JSON min |
+|------|--------|--------|-------------|
+| 10 | JSON (minified) | 324 | baseline |
+| 10 | PSV + strip + flatten | 196 | -40% |
+| 10 | MD + strip + flatten | 240 | -26% |
+| 100 | JSON (minified) | 3,222 | baseline |
+| 100 | PSV + strip + flatten | 1,834 | -43% |
+| 100 | MD + strip + flatten | 2,148 | -33% |
+| 500 | JSON (minified) | 16,102 | baseline |
+| 500 | PSV + strip + flatten | 9,114 | -43% |
+| 500 | MD + strip + flatten | 10,628 | -34% |
 
 ### Null-heavy (sparse)
 
-| Rows | Format | ~Tokens | vs JSON min |
-|------|--------|---------|-------------|
-| 10 | JSON (minified) | 355 | baseline |
-| 10 | PSV + strip + flatten | 108 | -70% |
-| 100 | JSON (minified) | 3,611 | baseline |
-| 100 | PSV + strip + flatten | 1,046 | -71% |
-| 500 | JSON (minified) | 18,378 | baseline |
-| 500 | PSV + strip + flatten | 5,513 | -70% |
+| Rows | Format | Tokens | vs JSON min |
+|------|--------|--------|-------------|
+| 10 | JSON (minified) | 392 | baseline |
+| 10 | PSV + strip + flatten | 160 | -59% |
+| 10 | MD + strip + flatten | 192 | -51% |
+| 100 | JSON (minified) | 3,902 | baseline |
+| 100 | PSV + strip + flatten | 1,510 | -61% |
+| 100 | MD + strip + flatten | 1,722 | -56% |
+| 500 | JSON (minified) | 19,502 | baseline |
+| 500 | PSV + strip + flatten | 7,510 | -61% |
+| 500 | MD + strip + flatten | 8,522 | -56% |
 
 ### DB rows (tasks)
 
-| Rows | Format | ~Tokens | vs JSON min |
-|------|--------|---------|-------------|
-| 10 | JSON (minified) | 736 | baseline |
-| 10 | PSV + strip + flatten | 418 | -43% |
-| 100 | JSON (minified) | 7,410 | baseline |
-| 100 | PSV + strip + flatten | 4,077 | -45% |
-| 500 | JSON (minified) | 37,370 | baseline |
-| 500 | PSV + strip + flatten | 20,637 | -45% |
+| Rows | Format | Tokens | vs JSON min |
+|------|--------|--------|-------------|
+| 10 | JSON (minified) | 785 | baseline |
+| 10 | PSV + strip + flatten | 499 | -36% |
+| 10 | MD + strip + flatten | 545 | -31% |
+| 100 | JSON (minified) | 7,827 | baseline |
+| 100 | PSV + strip + flatten | 4,841 | -38% |
+| 100 | MD + strip + flatten | 5,157 | -34% |
+| 500 | JSON (minified) | 39,127 | baseline |
+| 500 | PSV + strip + flatten | 24,141 | -38% |
+| 500 | MD + strip + flatten | 25,657 | -34% |
 
 ### Mixed (nested+nulls)
 
-| Rows | Format | ~Tokens | vs JSON min |
-|------|--------|---------|-------------|
-| 10 | JSON (minified) | 393 | baseline |
-| 10 | PSV + strip + flatten | 123 | -69% |
-| 100 | JSON (minified) | 4,016 | baseline |
-| 100 | PSV + strip + flatten | 1,114 | -72% |
-| 500 | JSON (minified) | 20,516 | baseline |
-| 500 | PSV + strip + flatten | 5,914 | -71% |
+| Rows | Format | Tokens | vs JSON min |
+|------|--------|--------|-------------|
+| 10 | JSON (minified) | 492 | baseline |
+| 10 | PSV + strip + flatten | 240 | -51% |
+| 10 | MD + strip + flatten | 305 | -38% |
+| 100 | JSON (minified) | 4,992 | baseline |
+| 100 | PSV + strip + flatten | 2,310 | -54% |
+| 100 | MD + strip + flatten | 2,825 | -43% |
+| 500 | JSON (minified) | 25,392 | baseline |
+| 500 | PSV + strip + flatten | 11,910 | -53% |
+| 500 | MD + strip + flatten | 14,425 | -43% |
 
 </details>
 

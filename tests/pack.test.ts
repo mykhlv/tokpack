@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pack, packRaw, createPacker } from '../src/pack.js';
-import { makeArray, makeStructuredText, makeKeyValueText } from './helpers.js';
+import { makeArray, makePythonRepr, makeStructuredText, makeKeyValueText } from './helpers.js';
 
 // --- pack() ---
 
@@ -157,6 +157,18 @@ describe('packRaw()', () => {
   it('already minified non-array JSON → unchanged', () => {
     const text = '{"name":"test","value":42}';
     expect(packRaw(text)).toBe(text);
+  });
+
+  it('Python repr string → compresses', () => {
+    const repr = makePythonRepr(10);
+    const result = packRaw(repr);
+    expect(result).not.toBe(repr);
+  });
+
+  it('Python repr with parsePython: false → returns original', () => {
+    const repr = makePythonRepr(10);
+    const result = packRaw(repr, { parsePython: false });
+    expect(result).toBe(repr);
   });
 });
 

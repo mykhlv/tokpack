@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Squeezer } from '../src/squeezer.js';
-import { rpc, makeArray, makeStructuredText, makeKeyValueText, makeBoldKeyValueText, makeHeaderSeparatedText } from './helpers.js';
+import { rpc, makeArray, makePythonRepr, makeStructuredText, makeKeyValueText, makeBoldKeyValueText, makeHeaderSeparatedText } from './helpers.js';
 
 const sq = new Squeezer({});
 
@@ -1003,6 +1003,23 @@ describe('TOON format', () => {
     expect(lines[4]).toContain(',1.5,');
   });
 
+  it('§2: canonical numbers — extreme exponents (via packData)', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: [1e20, 1e-20, 1.23e10, -1e15, 5e-7, 9.99e18][i],
+      label: `item_${i}`,
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const out = toonSq.packData(data);
+    const lines = out.split('\n');
+    expect(lines[1]).toContain(',100000000000000000000,'); // 1e20
+    expect(lines[2]).toContain(',0.00000000000000000001,'); // 1e-20
+    expect(lines[3]).toContain(',12300000000,'); // 1.23e10
+    expect(lines[4]).toContain(',-1000000000000000,'); // -1e15
+    expect(lines[5]).toContain(',0.0000005,'); // 5e-7
+    expect(lines[6]).toContain(',9990000000000000000,'); // 9.99e18
+  });
+
   it('§7.2: strings starting with "-" → quoted', () => {
     const data = Array.from({ length: 6 }, (_, i) => ({
       id: i + 1,
@@ -1457,6 +1474,147 @@ describe('content wrapper compression', () => {
   });
 });
 
+// --- Python repr normalization ---
+
+describe('Python repr normalization', () => {
+  it('basic Python repr array → compresses to tabular format', () => {
+    const repr = makePythonRepr(10);
+    const result = sq.packText(repr);
+    expect(result).not.toBe(repr);
+    // Should be compressed into a tabular format
+    expect(result.length).toBeLessThan(repr.length);
+    expect(result).toMatch(/^## PSV\|/m);
+  });
+
+  it('mixed quotes: double-quoted string with apostrophe', () => {
+    // Use 2 items to stay below MIN_ITEMS and get minified JSON output
+    const repr = '[{\'id\': 1, \'name\': "it\'s fine", \'val\': \'a\'}, {\'id\': 2, \'name\': "it\'s ok", \'val\': \'b\'}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].name).toBe('it\'s fine');
+  });
+
+  it('escaped single quote inside single-quoted string', () => {
+    const repr = '[{\'id\': 1, \'msg\': \'it\\\'s ok\', \'v\': \'x\'}, {\'id\': 2, \'msg\': \'it\\\'s fine\', \'v\': \'y\'}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed[0].msg).toBe('it\'s ok');
+  });
+
+  it('double quote inside single-quoted string → escaped in JSON', () => {
+    const repr = '[{\'id\': 1, \'msg\': \'say "hello"\', \'v\': \'x\'}, {\'id\': 2, \'msg\': \'say "bye"\', \'v\': \'y\'}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed[0].msg).toBe('say "hello"');
+  });
+
+  it('tuples converted to arrays', () => {
+    const repr = '[{\'id\': 1, \'val\': \'a\', \'tup\': (1, 2)}, {\'id\': 2, \'val\': \'b\', \'tup\': (3, 4)}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed[0].tup).toEqual([1, 2]);
+  });
+
+  it('None values → null', () => {
+    const repr = '[{\'id\': 1, \'val\': None, \'x\': \'a\'}, {\'id\': 2, \'val\': None, \'x\': \'b\'}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed[0].val).toBe(null);
+  });
+
+  it('keyword boundary safety: Falsehood and isNone not replaced', () => {
+    const repr = '[{\'id\': 1, \'name\': \'Falsehood\', \'tag\': \'isNone\'}, {\'id\': 2, \'name\': \'Falsehood\', \'tag\': \'isNone\'}]';
+    const result = sq.packText(repr);
+    const parsed = JSON.parse(result);
+    expect(parsed[0].name).toBe('Falsehood');
+    expect(parsed[0].tag).toBe('isNone');
+  });
+
+  it('identifiers with digits (e.g. item2) → parsed correctly', () => {
+    const items = Array.from({ length: 6 }, (_, i) =>
+      `{'id': ${i + 1}, 'item2': 'val_${i + 1}', 'name3x': 'n_${i + 1}'}`,
+    );
+    const repr = `[${items.join(', ')}]`;
+    const result = sq.packText(repr);
+    // Should parse successfully and compress (not return original)
+    expect(result).not.toBe(repr);
+    expect(result.length).toBeLessThan(repr.length);
+  });
+
+  it('parsePython: false → returns original text unchanged', () => {
+    const noPython = new Squeezer({ parsePython: false });
+    const repr = makePythonRepr(10);
+    const result = noPython.packText(repr);
+    expect(result).toBe(repr);
+  });
+
+  it('malformed repr (unclosed quote) → returns original text', () => {
+    const repr = '[{\'id\': 1, \'name\': \'unclosed';
+    const result = sq.packText(repr);
+    expect(result).toBe(repr);
+  });
+
+  it('Python repr via process() — MCP JSON-RPC wrapper', () => {
+    const repr = makePythonRepr(10);
+    const line = rpc(repr);
+    const result = sq.process(line);
+    const parsed = JSON.parse(result);
+    const out = parsed.result.content[0].text;
+    // Should be compressed (not the original Python repr)
+    expect(out).not.toBe(repr);
+  });
+
+  it('nested objects → flattened and compressed', () => {
+    const items = Array.from({ length: 10 }, (_, i) =>
+      `{'id': ${i + 1}, 'meta': {'city': 'Kyiv', 'zip': '01001'}, 'name': 'user_${i + 1}'}`,
+    );
+    const repr = `[${items.join(', ')}]`;
+    const result = sq.packText(repr);
+    expect(result).toContain('meta.city');
+    expect(result).toContain('Kyiv');
+  });
+
+  it('hex escape in value → normalization fails gracefully', () => {
+    const repr = '[{\'id\': 1, \'msg\': \'\\x1b[31mred\\x1b[0m\', \'v\': \'x\'}, {\'id\': 2, \'msg\': \'ok\', \'v\': \'y\'}, {\'id\': 3, \'msg\': \'ok\', \'v\': \'z\'}]';
+    const result = sq.packText(repr);
+    // \x escapes produce invalid JSON → falls through to original
+    expect(result).toBe(repr);
+  });
+
+  it('non-Python text with apostrophes → not affected', () => {
+    const text = "It's a beautiful day. The cat's out of the bag. That's all folks.";
+    const result = sq.packText(text);
+    expect(result).toBe(text);
+  });
+
+  it('backslash at end of value string', () => {
+    const repr = "[{'id': 1, 'v': 'end\\\\', 'x': 'a'}, {'id': 2, 'v': 'ok', 'x': 'b'}, {'id': 3, 'v': 'fine', 'x': 'c'}]";
+    const result = sq.packText(repr);
+    const normalized = JSON.parse(result.startsWith('[') ? result : '[]');
+    if (result.startsWith('[')) {
+      expect(normalized[0].v).toBe('end\\');
+    } else {
+      // Compressed to tabular — just verify it's shorter
+      expect(result.length).toBeLessThan(repr.length);
+    }
+  });
+
+  it('empty string values', () => {
+    const repr = "[{'id': 1, 'v': '', 'x': 'a'}, {'id': 2, 'v': '', 'x': 'b'}, {'id': 3, 'v': '', 'x': 'c'}]";
+    const result = sq.packText(repr);
+    expect(result).not.toBe(repr);
+  });
+
+  it('keywords inside string values are not replaced', () => {
+    const repr = "[{'id': 1, 'v': 'True story', 'x': 'a'}, {'id': 2, 'v': 'None of this', 'x': 'b'}, {'id': 3, 'v': 'False alarm', 'x': 'c'}]";
+    const result = sq.packText(repr);
+    expect(result).toContain('True story');
+    expect(result).toContain('None of this');
+    expect(result).toContain('False alarm');
+  });
+});
+
 // --- Auto format ---
 
 describe('auto format', () => {
@@ -1489,6 +1647,20 @@ describe('auto format', () => {
     const result = sq.packData(data);
     // Should fall back to minified JSON
     expect(result).toContain('"col|a"');
+  });
+
+  it('auto picks valid format when some formats are incompatible (via packData)', () => {
+    // Keys with commas: PSV rejects, TOON rejects — only Markdown works
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      'first,last': `user_${i}_with_long_name_for_padding`,
+      'age,years': i * 10 + 20,
+      'status': i % 2 === 0 ? 'active' : 'inactive',
+    }));
+    const auto = new Squeezer({ format: 'auto' });
+    const result = auto.packData(data);
+    // Should pick Markdown (the only compatible format via packData)
+    expect(result).toContain('|---|');
+    expect(result).not.toContain('## PSV');
   });
 
   it('picks non-PSV format when keys contain commas', () => {

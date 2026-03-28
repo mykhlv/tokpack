@@ -30,6 +30,7 @@ Options:
   --no-strip           Disable null/empty column stripping
   --no-flatten         Disable dot-notation flattening
   --no-parse-text      Disable structured text parsing
+  --no-parse-python    Disable Python repr normalization
   --mcp                MCP proxy mode (JSON-RPC protocol)
   --unwrap             Unwrap single-text content blocks (MCP only)
 
@@ -67,6 +68,7 @@ export function runConfig(parsed: ParsedArgs): never {
     + `  Strip empty:    ${opts.stripEmpty ? 'yes' : 'no'}\n`
     + `  Flatten:        ${opts.flatten ? 'yes' : 'no'}\n`
     + `  Parse text:     ${opts.parseText ? 'yes' : 'no'}\n`
+    + `  Parse Python:   ${opts.parsePython ? 'yes' : 'no'}\n`
     + `  Unwrap content: ${opts.unwrapContent ? 'yes' : 'no'}\n`);
   process.exit(0);
 }
