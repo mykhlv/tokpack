@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Python repr normalization now correctly handles identifiers containing digits (e.g. `item2`, `name3x`)
+- MCP proxy `process()` no longer mutates parsed content items in-place before serialization succeeds, preventing data corruption on stringify failure
+
 ### Added
 
 - Python repr normalization — converts Python `str()` output (single quotes, `None`, `True`/`False`, tuples) to valid JSON before compression. Enables tokpack to work with Python MCP servers. Disable with `--no-parse-python`.

@@ -37,6 +37,11 @@ function isIdentStart(ch: string): boolean {
   return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95; // A-Z, a-z, _
 }
 
+function isIdentContinue(ch: string): boolean {
+  const c = ch.charCodeAt(0);
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 48 && c <= 57); // A-Z, a-z, _, 0-9
+}
+
 function isPlainObject(val: unknown): val is Row {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
@@ -172,15 +177,26 @@ export class Squeezer {
       const content = packet.result?.content;
       if (!Array.isArray(content)) return line;
 
-      let changed = false;
-      for (const item of content) {
+      // Build replacement values separately to avoid mutating the parsed
+      // object before JSON.stringify succeeds (if stringify fails after
+      // in-place mutation, the catch would return the original line but the
+      // parsed packet would already be corrupted).
+      const replacements: { index: number, text: string }[] = [];
+      for (let i = 0; i < content.length; i++) {
+        const item = content[i];
         if (item.type !== 'text' || typeof item.text !== 'string') continue;
         if (item.text.length < MIN_CHARS) continue;
         const optimized = this.tryOptimize(item.text, packet.id);
         if (optimized !== item.text) {
-          item.text = optimized;
-          changed = true;
+          replacements.push({ index: i, text: optimized });
         }
+      }
+
+      let changed = replacements.length > 0;
+
+      // Apply all replacements at once, right before serialization
+      for (const r of replacements) {
+        content[r.index].text = r.text;
       }
 
       // Unwrap single-text content: [{type:"text",text:"..."}] → "..."
@@ -261,7 +277,7 @@ export class Squeezer {
 
       if (state === 'outside') {
         // Accumulate identifier characters
-        if (isIdentStart(ch)) {
+        if (ident.length > 0 ? isIdentContinue(ch) : isIdentStart(ch)) {
           ident += ch;
           continue;
         }
@@ -342,8 +358,15 @@ export class Squeezer {
     dataJson: string | null,
     applyFlatten: boolean,
   ): string {
-    // Keep original JSON for fallback (before any mutations)
-    const fallbackJson = dataJson ?? JSON.stringify(data);
+    // Lazy fallback JSON: only stringify when actually needed (fallback path).
+    // When called from tryOptimize, dataJson is null — avoid eager stringify
+    // if tabular conversion succeeds.
+    const getFallbackJson = (): string => {
+      if (dataJson !== null) return dataJson;
+      if (fallbackJson === null) fallbackJson = JSON.stringify(data);
+      return fallbackJson;
+    };
+    let fallbackJson: string | null = null;
     let records: Row[] = data;
 
     // Pre-processing: flatten nested objects via dot-notation
@@ -362,7 +385,7 @@ export class Squeezer {
       if (this.verbose) {
         process.stderr.write(`[tokpack] id:${id} skip: non-uniform keys\n`);
       }
-      return fallbackJson;
+      return getFallbackJson();
     }
 
     try {
@@ -382,12 +405,12 @@ export class Squeezer {
           if (this.verbose) {
             process.stderr.write(`[tokpack] id:${id} skip: keys incompatible with ${this.format}\n`);
           }
-          return fallbackJson;
+          return getFallbackJson();
         }
         formatted = this.renderFormat(records, keys, this.format);
       }
 
-      if (formatted === undefined || formatted.length >= originalChars) return fallbackJson;
+      if (formatted === undefined || formatted.length >= originalChars) return getFallbackJson();
       if (this.verbose) {
         this.logStats(id, originalChars, formatted.length);
       }
@@ -396,7 +419,7 @@ export class Squeezer {
       if (this.verbose) {
         process.stderr.write(`[tokpack] id:${id} skip: nested data detected\n`);
       }
-      return fallbackJson;
+      return getFallbackJson();
     }
   }
 

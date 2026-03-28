@@ -7,14 +7,10 @@ export { BYTES_PER_TOKEN };
 
 const DEFAULT_STATS_PATH = join(homedir(), '.tokpack', 'stats.log');
 
-let cachedStatsPath: string | undefined;
 let dirEnsured = false;
 
 export function getStatsPath(): string {
-  if (!cachedStatsPath) {
-    cachedStatsPath = process.env.TOKPACK_STATS_PATH || DEFAULT_STATS_PATH;
-  }
-  return cachedStatsPath;
+  return process.env.TOKPACK_STATS_PATH || DEFAULT_STATS_PATH;
 }
 
 export function appendStat(originalBytes: number, optimizedBytes: number): void {
@@ -73,8 +69,7 @@ export function readStats(): StatsAggregate {
 export function resetStats(): boolean {
   try {
     unlinkSync(getStatsPath());
-    // Reset dirEnsured so appendStat recreates the directory on next write,
-    // but keep cachedStatsPath — the path itself has not changed.
+    // Reset dirEnsured so appendStat recreates the directory on next write
     dirEnsured = false;
     return true;
   } catch {

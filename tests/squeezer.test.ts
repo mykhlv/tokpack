@@ -1003,6 +1003,23 @@ describe('TOON format', () => {
     expect(lines[4]).toContain(',1.5,');
   });
 
+  it('§2: canonical numbers — extreme exponents (via packData)', () => {
+    const data = Array.from({ length: 6 }, (_, i) => ({
+      id: i + 1,
+      val: [1e20, 1e-20, 1.23e10, -1e15, 5e-7, 9.99e18][i],
+      label: `item_${i}`,
+      note: 'padding to exceed threshold value for toon',
+    }));
+    const out = toonSq.packData(data);
+    const lines = out.split('\n');
+    expect(lines[1]).toContain(',100000000000000000000,'); // 1e20
+    expect(lines[2]).toContain(',0.00000000000000000001,'); // 1e-20
+    expect(lines[3]).toContain(',12300000000,'); // 1.23e10
+    expect(lines[4]).toContain(',-1000000000000000,'); // -1e15
+    expect(lines[5]).toContain(',0.0000005,'); // 5e-7
+    expect(lines[6]).toContain(',9990000000000000000,'); // 9.99e18
+  });
+
   it('§7.2: strings starting with "-" → quoted', () => {
     const data = Array.from({ length: 6 }, (_, i) => ({
       id: i + 1,
@@ -1514,6 +1531,17 @@ describe('Python repr normalization', () => {
     expect(parsed[0].tag).toBe('isNone');
   });
 
+  it('identifiers with digits (e.g. item2) → parsed correctly', () => {
+    const items = Array.from({ length: 6 }, (_, i) =>
+      `{'id': ${i + 1}, 'item2': 'val_${i + 1}', 'name3x': 'n_${i + 1}'}`,
+    );
+    const repr = `[${items.join(', ')}]`;
+    const result = sq.packText(repr);
+    // Should parse successfully and compress (not return original)
+    expect(result).not.toBe(repr);
+    expect(result.length).toBeLessThan(repr.length);
+  });
+
   it('parsePython: false → returns original text unchanged', () => {
     const noPython = new Squeezer({ parsePython: false });
     const repr = makePythonRepr(10);
@@ -1619,6 +1647,20 @@ describe('auto format', () => {
     const result = sq.packData(data);
     // Should fall back to minified JSON
     expect(result).toContain('"col|a"');
+  });
+
+  it('auto picks valid format when some formats are incompatible (via packData)', () => {
+    // Keys with commas: PSV rejects, TOON rejects — only Markdown works
+    const data = Array.from({ length: 10 }, (_, i) => ({
+      'first,last': `user_${i}_with_long_name_for_padding`,
+      'age,years': i * 10 + 20,
+      'status': i % 2 === 0 ? 'active' : 'inactive',
+    }));
+    const auto = new Squeezer({ format: 'auto' });
+    const result = auto.packData(data);
+    // Should pick Markdown (the only compatible format via packData)
+    expect(result).toContain('|---|');
+    expect(result).not.toContain('## PSV');
   });
 
   it('picks non-PSV format when keys contain commas', () => {

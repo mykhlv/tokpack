@@ -52,6 +52,20 @@ describe('appendStat', () => {
     const content = readFileSync(testStatsFile, 'utf8');
     expect(content).toContain('500,200');
   });
+
+  it('retries after directory is deleted between writes', () => {
+    // First write succeeds and caches dirEnsured
+    appendStat(1000, 400);
+    expect(readFileSync(testStatsFile, 'utf8')).toContain('1000,400');
+
+    // Externally delete the directory (simulates cleanup by user/OS)
+    rmSync(testDir, { recursive: true });
+
+    // Second write should retry with mkdir and succeed
+    appendStat(2000, 800);
+    const content = readFileSync(testStatsFile, 'utf8');
+    expect(content).toContain('2000,800');
+  });
 });
 
 describe('readStats', () => {
