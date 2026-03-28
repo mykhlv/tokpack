@@ -5,18 +5,27 @@ All notable changes to tokpack will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
-### Fixed
-
-- Python repr normalization now correctly handles identifiers containing digits (e.g. `item2`, `name3x`)
-- MCP proxy `process()` no longer mutates parsed content items in-place before serialization succeeds, preventing data corruption on stringify failure
+## 0.2.0 - 2026-03-28
 
 ### Added
 
 - Python repr normalization — converts Python `str()` output (single quotes, `None`, `True`/`False`, tuples) to valid JSON before compression. Enables tokpack to work with Python MCP servers. Disable with `--no-parse-python`.
 - PSV spec edge cases — CRLF normalization, backslash+pipe, unicode, empty datasets, improved decoding algorithm
 - PSV spec round-trip validation tests (encoder → independent decoder → comparison)
+
+### Fixed
+
+- Python repr normalization now correctly handles identifiers containing digits (e.g. `item2`, `name3x`)
+- MCP proxy `process()` no longer mutates parsed content items in-place before serialization succeeds
+
+### Changed
+
+- README benchmarks now use real o200k_base token counts instead of heuristic estimates
+
+### Security
+
+- Update picomatch 4.0.3 → 4.0.4 (ReDoS, method injection)
+- Update brace-expansion 5.0.4 → 5.0.5 (process hang via zero-step sequence)
 
 ## 0.1.3 - 2026-03-23
 
